@@ -1,0 +1,1760 @@
+---
+title: "Home Credit Default EDA"
+author: "Ian Donaldson"
+date: "2023-10-07"
+output: 
+  html_document:
+    highlight: breezedark
+    number_sections: yes
+    toc: yes
+    fig_width: 15
+    fig_height: 10
+---
+
+# Introduction
+
+## Project Goal
+In this exploration, we aim to delve into Home Credit's dataset, with a focus 
+on understanding crucial features and identifying any necessary data cleaning 
+processes. Our ultimate objective is to create a predictive model capable of 
+determining whether a customer will successfully repay a loan or default.
+
+## Business Problem
+Home Credit operates in rapidly growing and developing markets where many 
+consumers are "unbanked," lacking traditional credit scores common in more 
+developed economies. To maintain acceptable levels of loan losses while 
+expanding its lending portfolio, Home Credit requires a predictive model that 
+leverages alternative data sources, such as transactional information and 
+telecommunications data, to assess the likelihood of customer loan default.
+
+## Analytics Problem
+Our analytics problem centers around building a machine-learning classification 
+model that predicts loan defaults. Historical data from past customers in the 
+training dataset, including transactional and telco information, will serve as 
+input features. This model will then be used to predict the probability of 
+default for previously unseen customers in the test dataset with effectiveness
+measured by AUC-ROC.
+
+## Purpose of EDA Notebook
+This EDA notebook serves as the cornerstone of our data-driven approach to 
+addressing the Home Credit Default Risk problem. It marks the initial step in 
+our data science journey, enabling us to thoroughly grasp the dataset, 
+identify potential challenges, and make informed decisions regarding data 
+preprocessing and feature engineering.
+
+## Questions About Data
+As part of our exploration, answers to the following questions will be sought:
+- Can the features of data be categorized into a set of general topics?
+- How many missing values are there in each column?  
+- How many total missing values are there  
+- Is the target variable (loan default) balanced or unbalanced, and what is 
+the percentage distribution?  
+- What accuracy can be achieved with a simple majority class classifier?  
+- What are key issues with the unprocessed data?  
+- Are there any strong predictors that should be included in our predictive 
+model?  
+- What is the extent of missing data, and what strategies should be employed 
+to handle it?
+- Are there any outliers in the data, and how should they be handled?
+- Do the data values align with expectations, and are there any erroneous 
+values requiring cleaning?  
+- Are there any columns with near-zero or zero variance?  
+- Will data transformation be necessary to prepare it for modeling?  
+
+
+# Description of Data
+
+## Dataset CSV Overview
+
+Description of csv data files.
+
+**application_{train|test}.csv**
+
+* This is the main table, broken into two files for Train (with TARGET) and 
+Test (without TARGET).
+* Static data for all applications. One row represents one loan in our 
+data sample.
+
+**bureau.csv**
+
+* All client's previous credits provided by other financial institutions that 
+were reported to Credit Bureau (for clients who have a loan in our sample).
+* For every loan in our sample, there are as many rows as number of credits the 
+client had in Credit Bureau before the application date.
+
+**bureau_balance.csv**
+
+* Monthly balances of previous credits in Credit Bureau.
+* This table has one row for each month of history of every previous credit 
+reported to Credit Bureau – i.e the table has (#loans in sample * # of 
+relative previous credits * # of months where we have some history observable 
+for the previous credits) rows.
+
+**POS_CASH_balance.csv**
+
+* Monthly balance snapshots of previous POS (point of sales) and cash loans that 
+the applicant had with Home Credit.
+* This table has one row for each month of history of every previous credit in 
+Home Credit (consumer credit and cash loans) related to loans in our sample – 
+i.e. the table has (#loans in sample * # of relative previous credits * # of 
+months in which we have some history observable for the previous credits) rows.
+
+**credit_card_balance.csv**
+
+* Monthly balance snapshots of previous credit cards that the applicant has with 
+Home Credit.
+* This table has one row for each month of history of every previous credit in 
+Home Credit (consumer credit and cash loans) related to loans in our sample – 
+i.e. the table has (#loans in sample * # of relative previous credit 
+cards * # of months where we have some history observable for the previous 
+credit card) rows.
+
+**previous_application.csv**
+
+* All previous applications for Home Credit loans of clients who have loans in 
+our sample.
+* There is one row for each previous application related to loans in our data 
+sample.
+
+
+**installments_payments.csv**
+
+* Repayment history for the previously disbursed credits in Home Credit related 
+to the loans in our sample.
+* There is a) one row for every payment that was made plus b) one row each 
+for missed payment.
+* One row is equivalent to one payment of one installment OR one installment 
+corresponding to one payment of one previous Home Credit credit related to 
+loans in our sample.
+
+**HomeCredit_columns_description.csv**
+
+* This file contains descriptions for the columns in the various data files.
+
+  
+## Visual CSV Mapping
+
+```{r viz_csv_mapping, echo=FALSE, out.width = '100%'}
+# Include mapping of CSV and foreign key from data source
+knitr::include_graphics("home_credit.png")
+```
+
+```{r lib setup and data load, warning=FALSE, message=FALSE}
+#Length Output Silenced for Readability
+#load packages
+library('tidyverse')
+library('skimr')
+library('janitor')
+library('caret')
+
+#load data
+sample_submission <- read_csv("sample_submission.csv")
+previous_application <- read_csv("previous_application.csv")
+POS_cash_balance <- read_csv("POS_cash_balance.csv")
+installments_payments <- read_csv("installments_payments.csv")
+HomeCredit_columns_description <- read_csv("HomeCredit_columns_description.csv")
+credit_card_balance <- read_csv("credit_card_balance.csv")
+bureau <- read_csv("bureau.csv")
+bureau_balance <- read_csv("bureau_balance.csv")
+application_test <- read_csv("application_test.csv")
+application_train <- read_csv("application_train.csv")
+```
+
+```{r short initial data summary, warning=FALSE}
+#Glimpse Data and Description of Features.
+at <- application_train # Application file
+#initial glimpse at feature names and data types, lengthy uncomment if needed
+#glimpse(at)
+
+#data description of features, lengthy, uncomment if needed
+#HomeCredit_columns_description$Description[1:122]
+
+# Grain of the data in application_train
+length(unique(application_train$SK_ID_CURR))
+nrow(application_train) #number of rows
+
+# Review data for NAs
+skim(at) 
+
+# Count columns with any missing data in rows
+missing_rows <- colSums(is.na(at)) > 0
+
+# Count the number of variables with at least one missing row
+count_missing_variables <- sum(missing_rows)
+
+# Print the count of columns missing at least one row
+cat("Number of features with at least one missing row:", 
+    count_missing_variables, "\n")
+
+# Calculate and print the total count of missing values
+na_counts <- colSums(is.na(at))
+total_missing <- sum(na_counts)
+cat("Total Missing Values:", total_missing, "\n")
+
+#List and graph all columns with NaNs by percentage
+at %>%
+  select_if(~any(is.na(.))) %>%
+  summarise_all(funs(sum(is.na(.))/n())) %>%
+  gather() %>%
+  ggplot(aes(x = reorder(key, value), y = value)) +
+  geom_col(fill = "skyblue") +
+  coord_flip() +
+  labs(title = "Percentage of NaNs in Columns",
+       x = "Column",
+       y = "Percentage") +
+  theme_minimal() +
+  scale_y_continuous(limits = c(0, 1), 
+                     breaks = seq(0, 1, by = 0.1))  # Expand y-axis and add more bars
+
+# calculate percentage of default verse no default
+train_dist <- prop.table(table(at$TARGET)) * 100
+
+
+# Display the percentage distribution
+print(train_dist)
+
+
+# Create a data frame for plotting
+plot_data <- data.frame(Default = names(train_dist), 
+                        Percentage = as.numeric(train_dist))
+
+# Mutate the Default variable to "No" and "Yes"
+plot_data <- plot_data %>%
+  mutate(Default = ifelse(Default == "0", "No", "Yes"))
+
+# Create a bar plot with customizations
+ggplot(plot_data, aes(x = Default, y = Percentage)) +
+  geom_bar(stat = "identity", width = 0.8, fill = "skyblue") +
+  labs(title = "Percentage of Default vs No Default",
+       x = "Default",
+       y = "Percentage") +
+  theme_minimal() +
+  scale_y_continuous(limits = c(0, 100), 
+                     breaks = seq(0, 100, by = 10))  # Expand y-axis and add more bars
+
+```
+
+Several features with signifant NAs and some highly skewed. Target variable is
+highly imbalanced with 91.9% of the data being non-defaults. 
+
+
+
+## Data Description Summary
+
+The dataset for the Home Credit Default comprises seven distinct sets of data. 
+The primary dataset, "Application_train.csv," encompasses a large dataset 
+with 307,511 observations and 122 variables. This dataset serves as the 
+primary source of training data for all loan applicants. Within this dataset, 
+the target variable exists for when a client has had payment difficulties, 
+with a 1 for whether they had late payment more than X days on at least one of 
+the first Y installments of the loan in the sample (For analytical purposes, 
+this target variable is regarded as an indicator of default, though it's worth 
+noting that not all applicants face payment difficulties will necessarily 
+default on their loans.) There are 9,152,465 missing values in the primary 
+dataset, with 67 features containing at least one missing observation.
+
+Each observation within this dataset represents a unique loan application 
+and includes crucial information such as the target value 
+(indicating default or non-default), demographic variables 
+related to the applicant, and various other details. Additionally, 
+supplementary datasets encompass information about previous loan applications, 
+credit card balances, repayment histories, and the status of particular 
+FICO type credit scores in the Credit Bureau.
+
+The primary dataset's 122 variables can be broadly categorized into 
+five distinct groups:
+
+1. **Personal Information**: Variables about the customer's personal details.
+2. **Loan Information**: Variables associated with the specifics of the 
+loan application.
+3. **Area information**: Data related to the geographical area where the 
+customer resides.
+4. **Documentary Data**: Information regarding the documents provided by 
+the customer.
+5. **Credit Bureau Inquiries**: Details concerning inquiries made to the 
+Credit Bureau.
+
+The data is unbalanced with respect to the target. 8% of the samples 
+belonging to the "Yes" class (loan in default),with the majority class of 
+"No" constituing 92% of the samples.
+
+The accuracy of a simple majority class classifier would indicate that if
+all samples are classified as "No" the model would achieve an accuracy of 92%.
+While this number sounds fantastic, a high number of misclassifications would
+make this model potentially very expensive for the lender depending on loan
+amounts.
+
+### Key Issues with the Data
+
+1. **Too many features**: 122 features in just the main data file, 
+is a lot of features to work with (if all data files are included that amounts 
+to over 221 from the description file).
+2. **Too many missing values**: 9,152,465 missing values in the primary 
+dataset, with 67 features containing at least one missing observation.
+3. **Unbalanced data**: 8% of the samples belonging to the "Yes" class 
+(loan in default),with the majority class of "No" constituting 92% of the 
+samples. Many algorithims will have a hard time learning the minority class.
+
+
+# Exploratory Data Analysis
+
+## Duplicate or Constant Data
+
+```{r duplicate or constant data, warning=FALSE}
+#check all columns for duplicates
+get_dupes(at)
+
+#check all columns for constant data, consider a mix of single values
+#and NA's as constant
+
+at_no_const <- at %>%
+  remove_constant()
+
+ncol(at_no_const)
+```
+No duplicate data found or columns with constant data.
+
+## Feature and Target Data Exploration
+
+Selecting features for exploration that would seem likely to affect the target.
+
+```{r factorize data, warning=FALSE}
+# Factorize the target variable and others
+at$target <- factor(at$TARGET) %>% 
+  fct_recode("No" = "0", "Yes" = "1")
+
+at$NAME_TYPE_SUITE <- factor(at$NAME_TYPE_SUITE) 
+
+at$NAME_INCOME_TYPE <- factor(at$NAME_INCOME_TYPE)
+
+at$NAME_EDUCATION_TYPE <- factor(at$NAME_EDUCATION_TYPE)
+
+#conver FLAG_* to factors
+at <- at %>%
+  mutate(
+    FLAG_MOBIL = as.factor(FLAG_MOBIL),
+    FLAG_EMP_PHONE = as.factor(FLAG_EMP_PHONE),
+    FLAG_WORK_PHONE = as.factor(FLAG_WORK_PHONE),
+    FLAG_CONT_MOBILE = as.factor(FLAG_CONT_MOBILE),
+    FLAG_PHONE = as.factor(FLAG_PHONE),
+    FLAG_EMAIL = as.factor(FLAG_EMAIL)
+  )
+
+#convert remaining from later EDA to factors
+at$NAME_CONTRACT_TYPE <- factor(at$NAME_CONTRACT_TYPE)
+at$CODE_GENDER <- factor(at$CODE_GENDER) 
+at$FLAG_OWN_CAR <- factor(at$FLAG_OWN_CAR)
+at$FLAG_OWN_REALTY <- factor(at$FLAG_OWN_REALTY)
+at$ORGANIZATION_TYPE <- factor(at$ORGANIZATION_TYPE)
+```
+
+```{r NAME_CONTRACT_TYPE, warning=FALSE}
+# Plot count of loans broken out by type of loan and target
+at %>% 
+  ggplot(aes(x = target, fill = NAME_CONTRACT_TYPE)) +
+  geom_bar() +
+  labs(title = "Type of Loan vs Default",
+       x = "Default",
+       y = "Count",
+       fill = "Type of Loan") +
+  theme_minimal()
+
+
+
+# Bar plot showing the distribution of NAME_CONTRACT_TYPE to TARGET
+at %>% 
+  ggplot(aes(x = target, fill = NAME_CONTRACT_TYPE)) +
+  geom_bar(position = "fill") +
+  labs(title = "Type of Loan (Proportion of Default vs No Default)",
+       x = "Default",
+       y = "Proportion",
+       fill = "Type of Loan") +
+  theme_minimal()
+
+```
+More people take cash loans than revolving loans and cash loans are slightly
+more likely to default or have payment difficulties.
+
+```{r CODE_GENDER, warning=FALSE}
+# Percent of default by target by CODE_GENDER
+
+gender_defaults <- at %>%
+  group_by(CODE_GENDER, target) %>%
+  summarize(count = n()) %>%
+  group_by(CODE_GENDER) %>%
+  mutate(percentage = count / sum(count) * 100)
+
+print(gender_defaults)
+
+
+
+```
+
+Males are more likely to default than females on a loan. This could be an
+ethical issue, but potentially not since like auto insurance males are often
+charged a higher premium due to risk.
+
+```{r FLAG_OWN_CAR, warning=FALSE}
+# Calculate the percentage of defaults by car ownership
+auto_defaults <- at %>%
+  group_by(FLAG_OWN_CAR, target) %>%
+  summarize(count = n()) %>%
+  group_by(FLAG_OWN_CAR) %>%
+  mutate(percentage = count / sum(count) * 100)
+
+print(auto_defaults)
+
+
+```
+
+Clients that own car are slightly less likely to default on a loan. This could
+be due to the fact that they have a car to sell if they get into financial
+trouble, or just that they have a history of paying back a car loan.
+
+```{r FLAG_OWN_REALTY, warning=FALSE}
+# Calculate the percentage of defaults by realty ownership
+realty_defaults <- at %>%
+  group_by(FLAG_OWN_REALTY, target) %>%
+  summarize(count = n()) %>%
+  group_by(FLAG_OWN_REALTY) %>%
+  mutate(percentage = count / sum(count) * 100)
+
+print(realty_defaults)
+
+```
+Clients that own realty are slightly less likely to default on a loan. This could
+be due to the fact that they have a house to sell if they get into financial
+trouble, or just that they have a history of paying back a home loan. 
+The percentages are very similar to the FLAG_OWN_CAR so there could be some
+colinearity here.
+
+```{r CNT_CHILDREN, warning=FALSE}
+# 
+at %>% 
+     ggplot(aes(target, CNT_CHILDREN)) +
+     geom_boxplot()
+
+```
+The Count of Children does not seem to have meaningful impact on the target
+and can likely be removed.
+
+```{r AMT_INCOME_TOTAL, warning=FALSE}
+
+#99 percentile for AMT_INCOME_TOTAL
+p99 <- quantile(at$AMT_INCOME_TOTAL, probs = 0.99, na.rm = TRUE, names = FALSE)
+
+# Filter the data for AMT_INCOME_TOTAL greater than 500000
+filtered_data <- at %>%
+  filter(AMT_INCOME_TOTAL <= p99)
+
+# Histogram of AMT_INCOME_TOTAL p99
+ggplot(filtered_data, aes(x = AMT_INCOME_TOTAL)) +
+  geom_histogram() +
+  labs(title = "AMT_INCOME_TOTAL ( <= 500000)",
+       x = "AMT_INCOME_TOTAL") +
+  theme_minimal()
+
+# Histogram of log of AMT_INCOME_TOTAL
+ggplot(at, aes(x = log(AMT_INCOME_TOTAL))) +
+  geom_histogram() +
+  labs(title = "log(AMT_INCOME_TOTAL)",
+       x = "log(AMT_INCOME_TOTAL)") +
+  theme_minimal()
+
+# Create a boxplot showing relation of AMT_INCOME_TOTAL to TARGET under p99
+filtered_data %>% 
+  ggplot(aes(x = target, y = AMT_INCOME_TOTAL)) +
+  geom_boxplot() +
+  labs(title = "AMT_INCOME_TOTAL ( <= 500000) vs Default",
+       x = "Default",
+       y = "AMT_INCOME_TOTAL") +
+  theme_minimal()
+
+#Boplot of log of AMT_INCOME_TOTAL to TARGET yes or no default
+at %>% 
+  ggplot(aes(x = target, y = log(AMT_INCOME_TOTAL))) +
+  geom_boxplot() +
+  labs(title = "log(AMT_INCOME_TOTAL) vs Default",
+       x = "Default",
+       y = "log(AMT_INCOME_TOTAL)") +
+  theme_minimal()
+
+
+```
+
+AMT_INCOME_TOTAL highly right skeweed, the bulk of the data is below $500,000, 
+with less than 1% of data contained in outliers above this value, 
+those likely to repay with such high incomes. Consider using log to better 
+normally distribute data, or removing extreme outliers. 
+Higher income earners are less likely to default. 
+AMT_INCOME_TOTAL should be considered a strong predictor.
+
+
+
+
+```{r AMT_CREDIT, warning=FALSE}
+# Histogram AMT_CREDIT
+ggplot(at, aes(x = AMT_CREDIT)) +
+  geom_histogram() +
+  labs(title = "AMT_CREDIT",
+       x = "AMT_CREDIT") +
+  theme_minimal()
+#Boxplot of AMTCREDIT to TARGET yes or no default
+at %>% 
+  ggplot(aes(x = target, y = AMT_CREDIT)) +
+  geom_boxplot() +
+  labs(title = "AMT_CREDIT vs Default",
+       x = "Default",
+       y = "AMT_CREDIT") +
+  theme_minimal()
+
+# Histogram of log of AMT_CREDIT
+ggplot(at, aes(x = log(AMT_CREDIT))) +
+  geom_histogram() +
+  labs(title = "log(AMT_CREDIT)",
+       x = "log(AMT_CREDIT)") +
+  theme_minimal()
+
+#Boxplot of log of AMT_CREDIT to TARGET yes or no default
+at %>% 
+  ggplot(aes(x = target, y = log(AMT_CREDIT))) +
+  geom_boxplot() +
+  labs(title = "log(AMT_CREDIT) vs Default",
+       x = "Default",
+       y = "log(AMT_CREDIT)") +
+  theme_minimal()
+
+
+
+```
+AMT_CREDIT is highly right skewed, with the bulk of the data below $1,000,000.
+Using log to better normally distribute data helps show that those with higher
+credit or loan amounts are less likely to default. 
+
+```{r AMT_ANNUITY, warning=FALSE}
+# Histogram AMT_ANNUITY
+ggplot(at, aes(x = AMT_ANNUITY)) +
+  geom_histogram() +
+  labs(title = "AMT_ANNUITY",
+       x = "AMT_ANNUITY") +
+  theme_minimal()
+
+#Boxplot of AMT_ANNUITY
+at %>% 
+  ggplot(aes(x = target, y = AMT_ANNUITY)) +
+  geom_boxplot() +
+  labs(title = "AMT_ANNUITY vs Default",
+       x = "Default",
+       y = "AMT_ANNUITY") +
+  theme_minimal()
+
+# Histogram of log of AMT_ANNUITY
+ggplot(at, aes(x = log(AMT_ANNUITY))) +
+  geom_histogram() +
+  labs(title = "log(AMT_ANNUITY)",
+       x = "log(AMT_ANNUITY)") +
+  theme_minimal()
+
+#Boxplot of log of AMT_ANNUITY to TARGET yes or no default
+at %>% 
+  ggplot(aes(x = target, y = log(AMT_ANNUITY))) +
+  geom_boxplot() +
+  labs(title = "log(AMT_ANNUITY) vs Default",
+       x = "Default",
+       y = "log(AMT_ANNUITY)") +
+  theme_minimal()
+```
+AMT_ANNUITY is highly right skewed, with the bulk of the data below $50,000. 
+The log of AMT_ANNUITY is more normally distributed. Those with higher annuity
+amounts appear to slightly less likely to default. 
+
+```{r AMT_GOODS_PRICE, warning=FALSE}
+# Histogram AMT_GOODS_PRICE
+ggplot(at, aes(x = AMT_GOODS_PRICE)) +
+  geom_histogram() +
+  labs(title = "AMT_GOODS_PRICE",
+       x = "AMT_GOODS_PRICE") +
+  theme_minimal()
+
+#Boxplot of AMT_GOODS_PRICE to TARGET yes or no default
+at %>% 
+  mutate(target = factor(TARGET) %>% 
+           fct_recode("No" = "0", "Yes" = "1")) %>%
+  ggplot(aes(x = target, y = AMT_GOODS_PRICE)) +
+  geom_boxplot() +
+  labs(title = "AMT_GOODS_PRICE vs Default",
+       x = "Default",
+       y = "AMT_GOODS_PRICE") +
+  theme_minimal()
+
+# Histogram of log of AMT_GOODS_PRICE
+ggplot(at, aes(x = log(AMT_GOODS_PRICE))) +
+  geom_histogram() +
+  labs(title = "log(AMT_GOODS_PRICE)",
+       x = "log(AMT_GOODS_PRICE)") +
+  theme_minimal()
+
+#Boxplot of log of AMT_GOODS_PRICE to TARGET yes or no default
+at %>% 
+  mutate(target = factor(TARGET) %>% 
+           fct_recode("No" = "0", "Yes" = "1")) %>%
+  ggplot(aes(x = target, y = log(AMT_GOODS_PRICE))) +
+  geom_boxplot() +
+  labs(title = "log(AMT_GOODS_PRICE) vs Default",
+       x = "Default",
+       y = "log(AMT_GOODS_PRICE)") +
+  theme_minimal()
+
+
+```
+AMT_GOODS_PRICE is highly right skewed, with the bulk of the data below $500,000.
+The log of AMT_GOODS_PRICE is more normally distributed. Price of goods does not
+appear to have a strong relationship with default. 
+
+```{r NAME_TYPE_SUITE, warning=FALSE}
+
+#Count of NAME_TYPE_SUITE type by TARGET yes or no default
+at %>% 
+  ggplot(aes(x = NAME_TYPE_SUITE, fill = target)) +
+  geom_bar() +
+  labs(title = "NAME_TYPE_SUITE vs Default",
+       x = "NAME_TYPE_SUITE",
+       y = "Count") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+```
+While there might be some relationship between NAME_TYPE_SUITE and default, 
+most data falls into unaccompanied, followed by Family. The strength of the
+relationship is not strong enough to warrant keeping this feature. 
+
+```{r NAME_INCOME_TYPE, warning=FALSE}
+#Percentage of NAME_INCOME_TYPE type by TARGET yes or no default
+at %>% 
+  group_by(NAME_INCOME_TYPE, target) %>%
+  summarise(count = n()) %>%
+  mutate(perc = count / sum(count)) %>%
+  ggplot(aes(x = NAME_INCOME_TYPE, y = perc, fill = target)) +
+  geom_bar(stat = "identity") +
+  labs(title = "NAME_INCOME_TYPE vs Default",
+       x = "NAME_INCOME_TYPE",
+       y = "Percentage") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+```
+
+Clients on maternity leave are the most likely to default, followed by unemployed.
+
+```{r NAME_EDUCATION_TYPE, warning=FALSE}
+#Percentage of NAME_EDUCATION_TYPE type by TARGET yes or no default
+at %>% 
+  group_by(NAME_EDUCATION_TYPE, target) %>%
+  summarise(count = n()) %>%
+  mutate(perc = count / sum(count)) %>%
+  ggplot(aes(x = NAME_EDUCATION_TYPE, y = perc, fill = target)) +
+  geom_bar(stat = "identity") +
+  labs(title = "NAME_EDUCATION_TYPE vs Default",
+       x = "NAME_EDUCATION_TYPE",
+       y = "Percentage") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+NAME_EDUCATION_TYPE appears to have a strong relationship with default, with
+more clients who have higher education levels being less likely to default. 
+
+
+```{r NAME_FAMILY_STATUS, warning=FALSE}
+#Count of NAME_FAMILY_STATUS type by TARGET yes or no default
+at %>% 
+  ggplot(aes(x = NAME_FAMILY_STATUS, fill = target)) +
+  geom_bar() +
+  labs(title = "NAME_FAMILY_STATUS vs Default",
+       x = "NAME_FAMILY_STATUS",
+       y = "Count") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+```
+
+Married is by far most common family status, followed by single/not married. Much
+of this data would seem to be duplicated by other features such as CNT_CHILDREN
+and CNT_FAM_MEMBERS. Likely drop NAME_FAMILY_STATUS and keep CNT_FAM_MEMBERS as
+it would likely capture the same information as NAME_FAMILY_STATUS and CNT_CHILDREN.
+
+```{r NAME_HOUSING_TYPE, warning=FALSE} 
+#Count of NAME_HOUSING_TYPE type by TARGET yes or no default
+at %>% 
+  ggplot(aes(x = NAME_HOUSING_TYPE, fill = target)) +
+  geom_bar() +
+  labs(title = "NAME_HOUSING_TYPE vs Default",
+       x = "NAME_HOUSING_TYPE",
+       y = "Count") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+
+By far most common housing type is House/Apartment, followed by With parents.
+As this feature seems to duplicate information contained in OWN_REALTY, it can
+likely be dropped.
+
+```{r REGION_POPULATION_RELATIVE, warning=FALSE}
+#Histogram of REGION_POPULATION_RELATIVE
+ggplot(at, aes(x = REGION_POPULATION_RELATIVE)) +
+  geom_histogram() +
+  labs(title = "REGION_POPULATION_RELATIVE",
+       x = "REGION_POPULATION_RELATIVE") +
+  theme_minimal()
+
+#Distribution of REGION_POPULATION_RELATIVE by TARGET yes or no default
+at %>% 
+  ggplot(aes(x = REGION_POPULATION_RELATIVE, fill = target)) +
+  geom_density(alpha = 0.5) +
+  labs(title = "REGION_POPULATION_RELATIVE vs Default",
+       x = "REGION_POPULATION_RELATIVE",
+       y = "Density") +
+  theme_minimal()
+
+#Boxplot of REGION_POPULATION_RELATIVE to TARGET yes or no default
+at %>% 
+  ggplot(aes(x = target, y = REGION_POPULATION_RELATIVE)) +
+  geom_boxplot() +
+  labs(title = "REGION_POPULATION_RELATIVE vs Default",
+       x = "Default",
+       y = "REGION_POPULATION_RELATIVE") +
+  theme_minimal()
+
+
+
+
+
+
+
+```
+People in a more populated region might default less, perhaps as they have more
+job prospects, but it would seem unlikely to affect an individual application by
+discriminating against people from less populated regions. 
+
+```{r DAYS_BIRTH, warning=FALSE}
+
+#Histogram of DAYS_BIRTH in years multiplied by negative 1
+ggplot(at, aes(x = DAYS_BIRTH / -365)) +
+  geom_histogram() +
+  labs(title = "Age in Years",
+       x = "Age in Years",
+       y = "Count") +
+  theme_minimal()
+
+
+
+#boxplot of DAYS_BIRTH to TARGET yes or no default
+at %>% 
+  ggplot(aes(x = target, y = DAYS_BIRTH / -365)) +
+  geom_boxplot() +
+  labs(title = "Age in Years vs Default",
+       x = "Default",
+       y = "Age in Years") +
+  theme_minimal()
+
+#Distribution of REGION_POPULATION_RELATIVE by TARGET yes or no default
+at %>% 
+  ggplot(aes(x = DAYS_BIRTH / -365, fill = target)) +
+  geom_density(alpha = 0.5) +
+  labs(title = "Age in Years vs Default",
+       x = "Age in Years",
+       y = "Density") +
+  theme_minimal()
+```
+
+Age appears to be a very strong predictor of default, with older adults being
+less likely to default. 
+
+```{r DAYS_EMPLOYED, warning=FALSE}
+
+#Histogram of DAYS_EMPLOYED in years 
+ggplot(at, aes(x = DAYS_EMPLOYED)) +
+  geom_histogram() +
+  labs(title = "DAYS_EMPLOYED",
+       x = "DAYS_EMPLOYED",
+       y = "Count") +
+  theme_minimal()
+
+#show max value of DAYS_EMPLOYED
+at %>% 
+  summarise(max(DAYS_EMPLOYED))
+
+#Max DAYS_EMPLOYED as years
+at %>% 
+  summarise(max(DAYS_EMPLOYED)/365)
+
+#Remove DAYS_EMPLOYED over 100 years
+at <- at %>%
+  filter(DAYS_EMPLOYED < 36500)
+
+#Histogram of DAYS_EMPLOYED 
+ggplot(at, aes(x = DAYS_EMPLOYED)) +
+  geom_histogram() +
+  labs(title = "DAYS_EMPLOYED",
+       x = "DAYS_EMPLOYED",
+       y = "Count") +
+  theme_minimal()
+
+at %>% 
+  summarise(max(DAYS_EMPLOYED))
+
+#Histogram of DAYS_EMPLOYED in years multiplied by negative 1
+ggplot(at, aes(x = DAYS_EMPLOYED / -365)) +
+  geom_histogram() +
+  labs(title = "DAYS_EMPLOYED in Years",
+       x = "DAYS_EMPLOYED in Years",
+       y = "Count") +
+  theme_minimal()
+
+
+
+#boxplot of DAYS_EMPLOYED to TARGET yes or no default
+at %>% 
+  ggplot(aes(x = target, y = DAYS_EMPLOYED / -365)) +
+  geom_boxplot() +
+  labs(title = "DAYS_EMPLOYED in Years vs Default",
+       x = "Default",
+       y = "DAYS_EMPLOYED in Years") +
+  theme_minimal()
+
+#Distribution of REGION_POPULATION_RELATIVE by TARGET yes or no default
+at %>% 
+  ggplot(aes(x = DAYS_EMPLOYED / -365, fill = target)) +
+  geom_density(alpha = 0.5) +
+  labs(title = "DAYS_EMPLOYED in Years vs Default",
+       x = "DAYS_EMPLOYED in Years",
+       y = "Density") +
+  theme_minimal()
+
+```
+
+DAYS_EMPLOYED had an extreme outlier of 1000 years, which was not possible so
+it was removed. The distribution of DAYS_EMPLOYED is very skewed, with most
+people having been employed for less than 10 years. There is a slight trend
+towards people who have been employed longer being less likely to default, but
+it is not as strong as the trend for age. Those working for less than 2 years
+are the most likely to default.
+
+```{r DAYS_REGISTRATION, warning=FALSE}
+#Histogram of DAYS_REGISTRATION
+ggplot(at, aes(x = DAYS_REGISTRATION)) +
+  geom_histogram() +
+  labs(title = "DAYS_REGISTRATION",
+       x = "DAYS_REGISTRATION",
+       y = "Count") +
+  theme_minimal()
+
+#Distribution of DAYS_REGISTRATION by TARGET yes or no default
+at %>% 
+  ggplot(aes(x = DAYS_REGISTRATION, fill = target)) +
+  geom_density(alpha = 0.5) +
+  labs(title = "DAYS_REGISTRATION vs Default",
+       x = "DAYS_REGISTRATION",
+       y = "Density") +
+  theme_minimal()
+
+#Boxplot of DAYS_REGISTRATION to TARGET yes or no default
+at %>% 
+  ggplot(aes(x = target, y = DAYS_REGISTRATION)) +
+  geom_boxplot() +
+  labs(title = "DAYS_REGISTRATION vs Default",
+       x = "Default",
+       y = "DAYS_REGISTRATION") +
+  theme_minimal()
+
+
+
+```
+
+DAYS_REGISTRATION is also very skewed, with most people registering their
+application within the last 10 years. There is a slight trend towards people
+who have registered their application more recently being more likely to
+default. 
+
+```{r DAYS_ID_PUBLISH, warning=FALSE}
+#Histogram of DAYS_ID_PUBLISH
+ggplot(at, aes(x = DAYS_ID_PUBLISH)) +
+  geom_histogram() +
+  labs(title = "DAYS_ID_PUBLISH",
+       x = "DAYS_ID_PUBLISH",
+       y = "Count") +
+  theme_minimal()
+
+#Distribution of DAYS_ID_PUBLISH by TARGET yes or no default
+at %>% 
+  ggplot(aes(x = DAYS_ID_PUBLISH, fill = target)) +
+  geom_density(alpha = 0.5) +
+  labs(title = "DAYS_ID_PUBLISH vs Default",
+       x = "DAYS_ID_PUBLISH",
+       y = "Density") +
+  theme_minimal()
+
+#Boxplot of DAYS_ID_PUBLISH to TARGET yes or no default
+at %>% 
+  ggplot(aes(x = target, y = DAYS_ID_PUBLISH)) +
+  geom_boxplot() +
+  labs(title = "DAYS_ID_PUBLISH vs Default",
+       x = "Default",
+       y = "DAYS_ID_PUBLISH") +
+  theme_minimal()
+
+
+
+
+```
+Those who changed their identity document more recently than 8 years 
+are slighlty more likely to deafult, who those who changed their identity 
+document more than 10 years ago are slightly less likely to default. 
+
+```{r OWN_CAR_AGE, warning=FALSE}
+#Histogram of OWN_CAR_AGE
+ggplot(at, aes(x = OWN_CAR_AGE)) +
+  geom_histogram() +
+  labs(title = "OWN_CAR_AGE",
+       x = "OWN_CAR_AGE",
+       y = "Count") +
+  theme_minimal()
+
+#Distribution of OWN_CAR_AGE by TARGET yes or no default
+at %>% 
+  ggplot(aes(x = OWN_CAR_AGE, fill = target)) +
+  geom_density(alpha = 0.5) +
+  labs(title = "OWN_CAR_AGE vs Default",
+       x = "OWN_CAR_AGE",
+       y = "Density") +
+  theme_minimal()
+
+#Boxplot of OWN_CAR_AGE to TARGET yes or no default
+at %>% 
+  ggplot(aes(x = target, y = OWN_CAR_AGE)) +
+  geom_boxplot() +
+  labs(title = "OWN_CAR_AGE vs Default",
+       x = "Default",
+       y = "OWN_CAR_AGE") +
+  theme_minimal()
+```
+Those with older cars are slightly more likely to default, but the trend is
+not as strong as the other features. A client with a newer car either has more
+income or is more responsible with their money, and is therefore less likely
+to default. As car age depends on owning a car, this is likely a good candidate
+for an interaction effect.
+
+```{r FLAG_MOBIL, warning=FALSE}
+#Barplot of FLAG_MOBIL to TARGET yes or no default
+at %>% 
+  ggplot(aes(x = target, fill = FLAG_MOBIL)) +
+  geom_bar() +
+  labs(title = "FLAG_MOBIL vs Default",
+       x = "Default",
+       y = "Count") +
+  theme_minimal()
+
+#Barplot of FLAG_EMP_PHONE to TARGET yes or no default
+at %>% 
+  ggplot(aes(x = target, fill = FLAG_EMP_PHONE)) +
+  geom_bar() +
+  labs(title = "FLAG_EMP_PHONE vs Default",
+       x = "Default",
+       y = "Count") +
+  theme_minimal()
+
+#Barplot of FLAG_WORK_PHONE to TARGET yes or no default
+at %>% 
+  ggplot(aes(x = target, fill = FLAG_WORK_PHONE)) +
+  geom_bar() +
+  labs(title = "FLAG_WORK_PHONE vs Default",
+       x = "Default",
+       y = "Count") +
+  theme_minimal()
+
+#Barplot of FLAG_CONT_MOBILE to TARGET yes or no default
+at %>% 
+  ggplot(aes(x = target, fill = FLAG_CONT_MOBILE)) +
+  geom_bar() +
+  labs(title = "FLAG_CONT_MOBILE vs Default",
+       x = "Default",
+       y = "Count") +
+  theme_minimal()
+
+#Barplot of FLAG_PHONE to TARGET yes or no default
+at %>% 
+  ggplot(aes(x = target, fill = FLAG_PHONE)) +
+  geom_bar() +
+  labs(title = "FLAG_PHONE vs Default",
+       x = "Default",
+       y = "Count") +
+  theme_minimal()
+
+#Barplot of FLAG_EMAIL to TARGET yes or no default
+at %>% 
+  ggplot(aes(x = target, fill = FLAG_EMAIL)) +
+  geom_bar() +
+  labs(title = "FLAG_EMAIL vs Default",
+       x = "Default",
+       y = "Count") +
+  theme_minimal()
+
+```
+
+The majority of clients have a mobile phone, work phone, and a home phone. The
+only features with the FLAG_ feature that show any kind of split are 
+FLAG_WORK_PHONE, FLAG_PHONE, and FLAG_EMAIL. FLAG_MOBIL, FLAG_CONT_MOBILE,
+FLAG_EMP_PHONE all seem to be 1s so they can be removed.
+
+```{r OCCUPATION_TYPE, warning=FALSE}
+#Barplot of OCCUPATION_TYPE to TARGET yes or no default
+at %>% 
+  ggplot(aes(x = target, fill = OCCUPATION_TYPE)) +
+  geom_bar() +
+  labs(title = "OCCUPATION_TYPE vs Default",
+       x = "Default",
+       y = "Count") +
+  theme_minimal()
+
+```
+
+OCCUPATION_TYPE alone does not seem particularly strong as a predictor.
+
+```{r CNT_FAM_MEMBERS, warning=FALSE}
+#Histogram of CNT_FAM_MEMBERS
+ggplot(at, aes(x = CNT_FAM_MEMBERS)) +
+  geom_histogram() +
+  labs(title = "CNT_FAM_MEMBERS",
+       x = "CNT_FAM_MEMBERS",
+       y = "Count") +
+  theme_minimal()
+
+#Distribution of CNT_FAM_MEMBERS by TARGET yes or no default
+at %>% 
+  ggplot(aes(x = CNT_FAM_MEMBERS, fill = target)) +
+  geom_density(alpha = 0.5) +
+  labs(title = "CNT_FAM_MEMBERS vs Default",
+       x = "CNT_FAM_MEMBERS",
+       y = "Density") +
+  theme_minimal()
+
+#Boxplot of CNT_FAM_MEMBERS to TARGET yes or no default
+at %>% 
+  ggplot(aes(x = target, y = CNT_FAM_MEMBERS)) +
+  geom_boxplot() +
+  labs(title = "CNT_FAM_MEMBERS vs Default",
+       x = "Default",
+       y = "CNT_FAM_MEMBERS") +
+  theme_minimal()
+
+```
+
+Does not seem to be a strong predictor of default, but it does provide
+some data on kids, family size, and whether someone would be married so keeping.
+
+
+```{r REGION_RATING_CLIENT, warning=FALSE}
+#Distribution of REGION_RATING_CLIENT to TARGET yes or no default as percentage
+at %>% 
+  group_by(REGION_RATING_CLIENT, target) %>%
+  summarise(count = n()) %>%
+  mutate(perc = count / sum(count)) %>%
+  ggplot(aes(x = REGION_RATING_CLIENT, y = perc, fill = target)) +
+  geom_bar(stat = "identity") +
+  labs(title = "REGION_RATING_CLIENT vs Default",
+       x = "REGION_RATING_CLIENT",
+       y = "Percentage") +
+  theme_minimal()
+```
+
+There is a definite trend for REGION_RATING_CLIENT. The higher the rating,
+the more likely the client is to default. 
+
+```{r REGION_RATING_CLIENT_W_CITY, warning=FALSE}
+#Distribution of REGION_RATING_CLIENT_W_CITY to TARGET yes or no default as percentage
+at %>% 
+  group_by(REGION_RATING_CLIENT_W_CITY, target) %>%
+  summarise(count = n()) %>%
+  mutate(perc = count / sum(count)) %>%
+  ggplot(aes(x = REGION_RATING_CLIENT_W_CITY, y = perc, fill = target)) +
+  geom_bar(stat = "identity") +
+  labs(title = "REGION_RATING_CLIENT_W_CITY vs Default",
+       x = "REGION_RATING_CLIENT_W_CITY",
+       y = "Percentage") +
+  theme_minimal()
+
+```
+REGION_RATING_CLIENT_W_CITY is similar to REGION_RATING_CLIENT, but the
+percentage of defaults is higher for each rating. Likely worth just keeping 
+REGION_RATING_CLIENT_W_CITY.
+
+```{r WEEKDAY_APPR_PROCESS_START, warning=FALSE}
+#Distribution of WEEKDAY_APPR_PROCESS_START to TARGET yes or no default as percentage
+at %>% 
+  group_by(WEEKDAY_APPR_PROCESS_START, target) %>%
+  summarise(count = n()) %>%
+  mutate(perc = count / sum(count)) %>%
+  ggplot(aes(x = WEEKDAY_APPR_PROCESS_START, y = perc, fill = target)) +
+  geom_bar(stat = "identity") +
+  labs(title = "WEEKDAY_APPR_PROCESS_START vs Default",
+       x = "WEEKDAY_APPR_PROCESS_START",
+       y = "Percentage") +
+  theme_minimal()
+
+
+
+```
+
+Very little variation by WEEKDAY_APPR_PROCESS_START, I would remove this
+variable.
+
+```{r HOUR_APPR_PROCESS_START, warning=FALSE}
+#Distribution of HOUR_APPR_PROCESS_START to TARGET yes or no default as percentage
+at %>% 
+  group_by(HOUR_APPR_PROCESS_START, target) %>%
+  summarise(count = n()) %>%
+  mutate(perc = count / sum(count)) %>%
+  ggplot(aes(x = HOUR_APPR_PROCESS_START, y = perc, fill = target)) +
+  geom_bar(stat = "identity") +
+  labs(title = "HOUR_APPR_PROCESS_START vs Default",
+       x = "HOUR_APPR_PROCESS_START",
+       y = "Percentage") +
+  theme_minimal()
+
+#Boxplot of HOUR_APPR_PROCESS_START to TARGET yes or no default
+at %>% 
+  ggplot(aes(x = target, y = HOUR_APPR_PROCESS_START)) +
+  geom_boxplot() +
+  labs(title = "HOUR_APPR_PROCESS_START vs Default",
+       x = "Default",
+       y = "HOUR_APPR_PROCESS_START") +
+  theme_minimal()
+
+```
+HOUR_APPR_PROCESS_START does not seem to be a strong predictor of default, but
+it does seem to be a good indicator of when people apply for loans during the
+day with some variation.Interesting to note that
+people that apply at midnight have the highest percentage of default by hour 
+applied. I would not keep this variable.
+
+```{r REG_REGION_NOT_LIVE_REGION, warning=FALSE}
+#Distribution of REG_REGION_NOT_LIVE_REGION to TARGET yes or no default as percentage
+at %>% 
+  group_by(REG_REGION_NOT_LIVE_REGION, target) %>%
+  summarise(count = n()) %>%
+  mutate(perc = count / sum(count)) %>%
+  ggplot(aes(x = REG_REGION_NOT_LIVE_REGION, y = perc, fill = target)) +
+  geom_bar(stat = "identity") +
+  labs(title = "REG_REGION_NOT_LIVE_REGION vs Default",
+       x = "REG_REGION_NOT_LIVE_REGION",
+       y = "Percentage") +
+  theme_minimal()
+
+```
+
+REG_REGION_NOT_LIVE_REGION does not seem to be a strong predictor of default, 
+I would not keep this variable.
+
+```{r REG_REGION_NOT_WORK_REGION, warning=FALSE}
+#Distribution of REG_REGION_NOT_WORK_REGION to TARGET yes or no default as percentage
+at %>% 
+  group_by(REG_REGION_NOT_WORK_REGION, target) %>%
+  summarise(count = n()) %>%
+  mutate(perc = count / sum(count)) %>%
+  ggplot(aes(x = REG_REGION_NOT_WORK_REGION, y = perc, fill = target)) +
+  geom_bar(stat = "identity") +
+  labs(title = "REG_REGION_NOT_WORK_REGION vs Default",
+       x = "REG_REGION_NOT_WORK_REGION",
+       y = "Percentage") +
+  theme_minimal()
+
+```
+
+REG_REGION_NOT_WORK_REGION does not seem to be a strong predictor of default,
+I would not keep this variable.
+
+```{r LIVE_REGION_NOT_WORK_REGION, warning=FALSE}
+#Distribution of LIVE_REGION_NOT_WORK_REGION to TARGET yes or no default as percentage
+at %>% 
+  group_by(LIVE_REGION_NOT_WORK_REGION, target) %>%
+  summarise(count = n()) %>%
+  mutate(perc = count / sum(count)) %>%
+  ggplot(aes(x = LIVE_REGION_NOT_WORK_REGION, y = perc, fill = target)) +
+  geom_bar(stat = "identity") +
+  labs(title = "LIVE_REGION_NOT_WORK_REGION vs Default",
+       x = "LIVE_REGION_NOT_WORK_REGION",
+       y = "Percentage") +
+  theme_minimal()
+
+```
+LIVE_REGION_NOT_WORK_REGION does not seem to be a strong predictor of default,
+I would not keep this variable.
+
+```{r REG_CITY_NOT_LIVE_CITY, warning=FALSE}
+#Distribution of REG_CITY_NOT_LIVE_CITY to TARGET yes or no default as percentage
+at %>% 
+  group_by(REG_CITY_NOT_LIVE_CITY, target) %>%
+  summarise(count = n()) %>%
+  mutate(perc = count / sum(count)) %>%
+  ggplot(aes(x = REG_CITY_NOT_LIVE_CITY, y = perc, fill = target)) +
+  geom_bar(stat = "identity") +
+  labs(title = "REG_CITY_NOT_LIVE_CITY vs Default",
+       x = "REG_CITY_NOT_LIVE_CITY",
+       y = "Percentage") +
+  theme_minimal()
+
+
+```
+REG_CITY_NOT_LIVE_CITY does not seem to be a strong predictor of default.
+
+```{r REG_CITY_NOT_WORK_CITY, warning=FALSE}
+#Distribution of REG_CITY_NOT_WORK_CITY to TARGET yes or no default as percentage
+at %>% 
+  group_by(REG_CITY_NOT_WORK_CITY, target) %>%
+  summarise(count = n()) %>%
+  mutate(perc = count / sum(count)) %>%
+  ggplot(aes(x = REG_CITY_NOT_WORK_CITY, y = perc, fill = target)) +
+  geom_bar(stat = "identity") +
+  labs(title = "REG_CITY_NOT_WORK_CITY vs Default",
+       x = "REG_CITY_NOT_WORK_CITY",
+       y = "Percentage") +
+  theme_minimal()
+
+
+
+```
+
+REG_CITY_NOT_WORK_CITY does not seem to be a strong predictor of default.
+
+```{r LIVE_CITY_NOT_WORK_CITY, warning=FALSE}
+#Distribution of LIVE_CITY_NOT_WORK_CITY to TARGET yes or no default as percentage
+at %>% 
+  group_by(LIVE_CITY_NOT_WORK_CITY, target) %>%
+  summarise(count = n()) %>%
+  mutate(perc = count / sum(count)) %>%
+  ggplot(aes(x = LIVE_CITY_NOT_WORK_CITY, y = perc, fill = target)) +
+  geom_bar(stat = "identity") +
+  labs(title = "LIVE_CITY_NOT_WORK_CITY vs Default",
+       x = "LIVE_CITY_NOT_WORK_CITY",
+       y = "Percentage") +
+  theme_minimal()
+
+
+
+```
+LIVE_CITY_NOT_WORK_CITY does not seem to be a strong predictor of default.
+
+```{r ORGANIZATION_TYPE, warning=FALSE}
+#Distribution of ORGANIZATION_TYPE to TARGET yes or no default as count of loan
+at %>% 
+  group_by(ORGANIZATION_TYPE, target) %>%
+  summarise(count = n()) %>%
+  ggplot(aes(x = ORGANIZATION_TYPE, y = count, fill = target)) +
+  geom_bar(stat = "identity") +
+  labs(title = "ORGANIZATION_TYPE vs Default",
+       x = "ORGANIZATION_TYPE",
+       y = "Count") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+
+
+```
+Those working in Business and Self-employed make up the largest count of loans
+and are more likely to default on their loans.
+
+
+```{r EXT_SOURCE, warning=FALSE}
+at %>% 
+     ggplot(aes(target, EXT_SOURCE_1)) +
+     geom_boxplot()
+
+at %>% 
+     ggplot(aes(target, EXT_SOURCE_2)) +
+     geom_boxplot()
+
+at %>% 
+     ggplot(aes(target, EXT_SOURCE_3)) +
+     geom_boxplot()
+```
+
+EXT_SOURCE_1, EXT_SOURCE_2, EXT_SOURCE_3 are all continuous variables and 
+appear to be a normalized score of type, similar to a credit score.  The higher
+the score, the less likely the person is to default on their loan.  EXT_SOURCE_1
+and EXT_SOURCE_3 both have a large number of missing values.  
+
+Columns 43 - 97 all appear to do with the building a client lives in.  They 
+all have a large number of missing values.
+
+```{r OBS_30_CNT_SOCIAL_CIRCLE, warning=FALSE}
+#Density plot of OBS_30_CNT_SOCIAL_CIRCLE
+at %>% 
+  ggplot(aes(OBS_30_CNT_SOCIAL_CIRCLE)) +
+  geom_density() +
+  facet_wrap(~target, nrow = 2)
+
+#Density plot of log of OBS_30_CNT_SOCIAL_CIRCLE
+at %>% 
+  ggplot(aes(log(OBS_30_CNT_SOCIAL_CIRCLE))) +
+  geom_density() +
+  facet_wrap(~target, nrow = 2)
+
+```
+OBS_30_CNT_SOCIAL_CIRCLE is a count of how many observations of client's social
+circle observed in 30 days.   The distribution of the , whether using the 
+log or not, of the count of
+observations of client's social circle observed in 30 days is similar for both
+those who default and those who do not default. I would not expect this to be
+a strong predictor of default.
+
+```{r DEF_30_CNT_SOCIAL_CIRCLE, warning=FALSE}
+#Density plot of DEF_30_CNT_SOCIAL_CIRCLE
+at %>% 
+  ggplot(aes(DEF_30_CNT_SOCIAL_CIRCLE)) +
+  geom_density() +
+  facet_wrap(~target, nrow = 2)
+
+#Density plot of log of DEF_30_CNT_SOCIAL_CIRCLE
+at %>% 
+  ggplot(aes(log(DEF_30_CNT_SOCIAL_CIRCLE))) +
+  geom_density() +
+  facet_wrap(~target, nrow = 2)
+
+```
+DEF_30_CNT_SOCIAL_CIRCLE is a count of how many observations of client's social
+circle observed in 30 days with at least 1 default.The distribution of the , 
+whether using the log or not, of the count of observations of client's social
+circle observed in 30 days with at least 1 default is similar for both
+those who default and those who do not default. I would not expect this to be
+a strong predictor of default.
+
+```{r OBS_60_CNT_SOCIAL_CIRCLE, warning=FALSE}
+#Density plot of OBS_60_CNT_SOCIAL_CIRCLE
+at %>% 
+  ggplot(aes(OBS_60_CNT_SOCIAL_CIRCLE)) +
+  geom_density() +
+  facet_wrap(~target, nrow = 2)
+
+#Density plot of log of OBS_60_CNT_SOCIAL_CIRCLE
+at %>% 
+  ggplot(aes(log(OBS_60_CNT_SOCIAL_CIRCLE))) +
+  geom_density() +
+  facet_wrap(~target, nrow = 2)
+
+```
+
+OBS_60_CNT_SOCIAL_CIRCLE is a count of how many observations of client's social
+circle observed in 60 days.   The distribution of the , whether using the
+log or not, of the count of
+observations of client's social circle observed in 60 days is similar for both
+those who default and those who do not default. I would not expect this to be
+a strong predictor of default.
+
+```{r DEF_60_CNT_SOCIAL_CIRCLE, warning=FALSE}
+#Density plot of DEF_60_CNT_SOCIAL_CIRCLE
+at %>% 
+  ggplot(aes(DEF_60_CNT_SOCIAL_CIRCLE)) +
+  geom_density() +
+  facet_wrap(~target, nrow = 2)
+
+#Density plot of log of DEF_60_CNT_SOCIAL_CIRCLE
+at %>% 
+  ggplot(aes(log(DEF_60_CNT_SOCIAL_CIRCLE))) +
+  geom_density() +
+  facet_wrap(~target, nrow = 2)
+
+```
+DEF_60_CNT_SOCIAL_CIRCLE is a count of how many observations of client's social
+circle observed in 60 days with at least 1 default.The distribution of the,
+whether using the log or not, of the count of observations of client's social
+circle observed in 60 days with at least 1 default is similar for both 
+those who default and those who do not default. I would not expect this to be
+a strong predictor of default.
+
+```{r DAYS_LAST_PHONE_CHANGE, warning=FALSE}
+#Density plot of DAYS_LAST_PHONE_CHANGE
+at %>% 
+  ggplot(aes(DAYS_LAST_PHONE_CHANGE)) +
+  geom_density() +
+  facet_wrap(~target, nrow = 2)
+
+```
+DAYS_LAST_PHONE_CHANGE is the number of days before the application the client
+changed phone.  The distribution of the number of days before the application
+the client changed phone is similar for both those who default and those who do
+not default. I would not expect this to be a strong predictor of default.
+
+```{r FLAG_DOC*, warning=FALSE}
+# List of FLAG_DOCUMENT variables
+flag_doc_vars <- c(
+  "FLAG_DOCUMENT_2", "FLAG_DOCUMENT_3", "FLAG_DOCUMENT_4", "FLAG_DOCUMENT_5",
+  "FLAG_DOCUMENT_6", "FLAG_DOCUMENT_7", "FLAG_DOCUMENT_8", "FLAG_DOCUMENT_9",
+  "FLAG_DOCUMENT_10", "FLAG_DOCUMENT_11", "FLAG_DOCUMENT_12", "FLAG_DOCUMENT_13",
+  "FLAG_DOCUMENT_14", "FLAG_DOCUMENT_15", "FLAG_DOCUMENT_16", "FLAG_DOCUMENT_17",
+  "FLAG_DOCUMENT_18", "FLAG_DOCUMENT_19", "FLAG_DOCUMENT_20", "FLAG_DOCUMENT_21"
+)
+
+# Percentage of loans with a value of 1 for each FLAG_DOCUMENT variable
+percentage_data <- at %>%
+  select(all_of(flag_doc_vars)) %>%
+  summarise(across(all_of(flag_doc_vars), ~ mean(. == 1) * 100))
+
+# Transpose the result to have FLAG_DOCUMENT variables as rows
+percentage_data <- t(percentage_data)
+
+# Name the columns
+colnames(percentage_data) <- c("Percentage")
+
+# Print the result
+print(percentage_data)
+
+```
+Basically all documents other than FLAG_DOCUMENT_3 have less than 1% of the
+loans with a value of 1.  I would not expect these to be strong predictors of
+default.
+
+```{r AMT_REQ_CREDIT_BUREAU_*, warning=FALSE} 
+#Density plot of AMT_REQ_CREDIT_BUREAU_HOUR not using facet_wrap
+at %>% 
+  ggplot(aes(AMT_REQ_CREDIT_BUREAU_HOUR)) +
+  geom_density() +
+  facet_wrap(~target, nrow = 2)
+
+#Density plot of AMT_REQ_CREDIT_BUREAU_DAY using facet_wrap
+at %>% 
+  ggplot(aes(AMT_REQ_CREDIT_BUREAU_DAY)) +
+  geom_density() +
+  facet_wrap(~target, nrow = 2)
+
+#Density plot of AMT_REQ_CREDIT_BUREAU_WEEK using facet_wrap
+at %>% 
+  ggplot(aes(AMT_REQ_CREDIT_BUREAU_WEEK)) +
+  geom_density() +
+  facet_wrap(~target, nrow = 2)
+
+#Density plot of AMT_REQ_CREDIT_BUREAU_MON using facet_wrap
+at %>% 
+  ggplot(aes(AMT_REQ_CREDIT_BUREAU_MON)) +
+  geom_density() +
+  facet_wrap(~target, nrow = 2)
+
+#Density plot of AMT_REQ_CREDIT_BUREAU_QRT using facet_wrap
+at %>% 
+  ggplot(aes(AMT_REQ_CREDIT_BUREAU_QRT)) +
+  geom_density() +
+  facet_wrap(~target, nrow = 2)
+
+#Density plot of AMT_REQ_CREDIT_BUREAU_YEAR using facet_wrap
+at %>% 
+  ggplot(aes(AMT_REQ_CREDIT_BUREAU_YEAR)) +
+  geom_density() +
+  facet_wrap(~target, nrow = 2)
+
+
+```
+None of the AMT_REQ_CREDIT_BUREAU_* variables appear to be strong predictors of
+default.
+
+## Data Preparation 
+
+## Feature Cleanup From initial EDA
+
+```{r feature cleanup, warning=FALSE}
+
+#Remove features mentioned in EDA
+at <- at %>%
+  select(-CNT_CHILDREN, -AMT_GOODS_PRICE, -NAME_TYPE_SUITE, -NAME_FAMILY_STATUS,
+ -NAME_HOUSING_TYPE, -REGION_POPULATION_RELATIVE, -FLAG_MOBIL, -FLAG_CONT_MOBILE,
+-FLAG_EMP_PHONE, -OCCUPATION_TYPE, -REGION_RATING_CLIENT, 
+-WEEKDAY_APPR_PROCESS_START, -HOUR_APPR_PROCESS_START, 
+-REG_REGION_NOT_LIVE_REGION, -REG_REGION_NOT_WORK_REGION, 
+-REG_CITY_NOT_WORK_CITY, -LIVE_CITY_NOT_WORK_CITY, -REG_CITY_NOT_WORK_CITY,
+-OBS_30_CNT_SOCIAL_CIRCLE, -DEF_30_CNT_SOCIAL_CIRCLE, -OBS_60_CNT_SOCIAL_CIRCLE,
+-DEF_60_CNT_SOCIAL_CIRCLE, -DAYS_LAST_PHONE_CHANGE, -FLAG_DOCUMENT_2, 
+-FLAG_DOCUMENT_3, -FLAG_DOCUMENT_4, -FLAG_DOCUMENT_5, -FLAG_DOCUMENT_6, 
+-FLAG_DOCUMENT_7, -FLAG_DOCUMENT_8, -FLAG_DOCUMENT_9, -FLAG_DOCUMENT_10,
+-FLAG_DOCUMENT_11, -FLAG_DOCUMENT_12, -FLAG_DOCUMENT_13, -FLAG_DOCUMENT_14,
+-FLAG_DOCUMENT_15, -FLAG_DOCUMENT_16, -FLAG_DOCUMENT_17, -FLAG_DOCUMENT_18,
+-FLAG_DOCUMENT_19, -FLAG_DOCUMENT_20, -FLAG_DOCUMENT_21, 
+-AMT_REQ_CREDIT_BUREAU_HOUR, -AMT_REQ_CREDIT_BUREAU_DAY, 
+-AMT_REQ_CREDIT_BUREAU_WEEK, -AMT_REQ_CREDIT_BUREAU_MON,
+-AMT_REQ_CREDIT_BUREAU_QRT, -AMT_REQ_CREDIT_BUREAU_YEAR)
+
+```
+
+```{r rexamine features, warning=FALSE}
+
+# rexamine features for NaNs after removal
+skim(at)
+
+```
+
+Weak predictors removed, now to remove features with too many NaNs.
+
+
+# Missing Data EDA and Cleanup
+
+```{r missing data, warning=FALSE}
+# Calculate the percentage of NaNs for each column, descending, vertical
+at %>%
+  summarise(across(everything(), ~ mean(is.na(.)) * 100)) %>%
+  pivot_longer(everything(), names_to = "Column", values_to = "Percentage") %>%
+  arrange(desc(Percentage)) %>%
+  knitr::kable()
+
+```
+
+Remove everything greater than 20% missing, almost all of it exclusively is
+related to building information, without even regarding expense. EXT_SOURCE_1 
+is much higher than this, but due to it's extreme strength as a predictor 
+of default, I will keep it and perform imputations. The other remaining features
+with a few NaNs that were deemed important in the EDA will be imputed as well.
+
+
+```{r missing data cleanup, warning=FALSE}
+# Remove columns with more than 20% missing
+
+at <- at %>%
+  select(
+  -COMMONAREA_AVG, -COMMONAREA_MODE, -COMMONAREA_MEDI, -NONLIVINGAPARTMENTS_AVG,
+  -NONLIVINGAPARTMENTS_MODE, -NONLIVINGAPARTMENTS_MEDI, -FONDKAPREMONT_MODE, 
+  -LIVINGAPARTMENTS_AVG, -LIVINGAPARTMENTS_MODE, -LIVINGAPARTMENTS_MEDI, 
+  -FLOORSMIN_AVG, -FLOORSMIN_MODE, -FLOORSMIN_MEDI, 
+  -YEARS_BUILD_AVG, -YEARS_BUILD_MODE, -YEARS_BUILD_MEDI, 
+  -OWN_CAR_AGE, -LANDAREA_AVG, -LANDAREA_MODE, -LANDAREA_MEDI, 
+  -BASEMENTAREA_AVG, -BASEMENTAREA_MODE, -BASEMENTAREA_MEDI, 
+  -NONLIVINGAREA_AVG, -NONLIVINGAREA_MODE, -NONLIVINGAREA_MEDI, 
+  -ELEVATORS_AVG, -ELEVATORS_MODE, -ELEVATORS_MEDI, 
+  -WALLSMATERIAL_MODE, -APARTMENTS_AVG, -APARTMENTS_MODE, 
+ -APARTMENTS_MEDI, -ENTRANCES_AVG, -ENTRANCES_MODE, -ENTRANCES_MEDI, 
+ -LIVINGAREA_AVG, -LIVINGAREA_MODE, -LIVINGAREA_MEDI, -HOUSETYPE_MODE, 
+ -FLOORSMAX_AVG, -FLOORSMAX_MODE, -FLOORSMAX_MEDI, 
+ -YEARS_BEGINEXPLUATATION_AVG, -YEARS_BEGINEXPLUATATION_MODE, 
+ -YEARS_BEGINEXPLUATATION_MEDI, -TOTALAREA_MODE, -EMERGENCYSTATE_MODE
+)
+
+```
+
+```{r impute data, warning=FALSE}
+
+# Impute EXT_SOURCE_1 with mean
+at$EXT_SOURCE_1[is.na(at$EXT_SOURCE_1)] <- mean(at$EXT_SOURCE_1, na.rm = TRUE)
+
+# Impute EXT_SOURCE_2 with mean
+at$EXT_SOURCE_2[is.na(at$EXT_SOURCE_2)] <- mean(at$EXT_SOURCE_2, na.rm = TRUE)
+
+# Impute EXT_SOURCE_3 with mean
+at$EXT_SOURCE_3[is.na(at$EXT_SOURCE_3)] <- mean(at$EXT_SOURCE_3, na.rm = TRUE)
+
+# Impute AMT_ANNUITY with mean
+at$AMT_ANNUITY[is.na(at$AMT_ANNUITY)] <- mean(at$AMT_ANNUITY, na.rm = TRUE)
+
+# Impute CNT_FAM_MEMBERS with median
+at$CNT_FAM_MEMBERS[is.na(at$CNT_FAM_MEMBERS)] <- median(at$CNT_FAM_MEMBERS, 
+                                                      na.rm = TRUE)
+
+#validate imputations and no more NaNs
+skim(at)
+
+
+```
+
+Validated that all NaNs have been removed, now to check for zero or near zero.
+
+```{r check for near variance, warning=FALSE}
+# Identify columns with near-zero or zero variance
+near_zero_var_cols <- nearZeroVar(at, saveMetrics = TRUE)
+
+# Print the result
+print(near_zero_var_cols)
+
+
+```
+No values left are zero or near zero variance, so no further action is needed.
+
+
+
+
+## Discusion of Missing Data and Proposed Solution
+
+After examining feature to target prediction and the occurrence of missing data 
+a comprehensive strategy to address the issue of missing data was developed. 
+
+**Scope of Missing Data:**
+Upon thorough investigation, it was observed that the dataset contained several 
+missing values across various features. The next step was to identify those 
+variables that may not significantly contribute to our target prediction or 
+those that appeared to duplicate existing information.
+Once the initial preprocessing was performed to remove variables deemed worth 
+removing, the remaining missing values in the dataset. It was observed that a 
+substantial portion of these missing values, exceeding 20% in frequency, 
+pertained to variables primarily associated with building information. 
+Additionally, the 'EXT_SOURCE_1' feature has missing values at nearly 51% 
+but was retained due to its proven strength as a predictor of default risk. 
+EXT_SOURCE_2(1%), and EXT_SOURCE_3 (20%), both similar strong predictors, 
+have some collinearity to EXT_SOURCE_1, so it was deemed okay to retain for 
+further modeling and lookback. AMT_ANNUIT and CNT_FAM_MEMBERS were not removed 
+as weak or unrelated predictors and have marginal NaNs that will be imputed.
+
+
+**Proposed Solution:**
+
+Handling Missing Values (>20%): Features with missing values exceeding the 20% 
+threshold, predominantly related to building information, were deemed less 
+informative for our analysis. Hence, these features were removed from the 
+dataset to preserve data quality and model performance.
+
+Imputation of Critical Features: Critical features with relatively few missing 
+values, yet significant in our exploratory data analysis (EDA), were selected 
+for imputation. Imputation using the mean for the columns was applied to these 
+features to retain their valuable insights in the dataset.
+
+**Final Dataset Composition after Preprocessing and Preparation for Modeling:**
+After removing unnecessary features, eliminating features with missing values 
+exceeding 20% (excluding EXT_SOURCE_1_, and applying imputation where necessary,
+our final dataset comprises 74 features (excluding the target variable) and 
+252,137 rows. This refined dataset is poised to provide a stronger predictive 
+model, balancing data quality, preicison, and recall.
+
+## Additional Transformation
+
+```{r add log transformed features, warning=FALSE}
+# Add log transformed features
+at$log_AMT_INCOME_TOTAL <- log(at$AMT_INCOME_TOTAL)
+at$log_AMT_CREDIT <- log(at$AMT_CREDIT)
+at$log_AMT_ANNUITY <- log(at$AMT_ANNUITY)
+
+#Check feature historgrams 
+skim(at$log_AMT_INCOME_TOTAL)
+skim(at$log_AMT_CREDIT)
+skim(at$log_AMT_ANNUITY)
+
+```
+
+Features identified as ripe for log transformation, appear more normally
+distributed using log.
+
+```{r add log transformed features, warning=FALSE}
+```
+
+```{r check target balance, warning=FALSE}
+prop.table(table(at$TARGET)) * 100
+```
+Final check of target balance shows that the data is still imbalanced, but
+slightly not as bad as before with the minority case of default = Yes rising to
+8.7% from 8.1%. 
+
+# Results
+
+This EDA aims to thoroughly understand Home Credit's dataset in preparation for 
+using the data to build a predictive model that determines loan default risk by 
+focusing on data quality, feature relevance, and missing data handling. 
+This summary highlights key findings and their implications.
+
+The dataset's 122 features were analyzed and categorized into five 
+primary groups: Personal Information, Loan Information, Area Information, 
+Documentary Data, and Credit Bureau Inquiries. This categorization provides a 
+structured overview of the dataset's contents.
+
+**Missing Data Analysis**
+
+- There were significant issues with missing data, with a total of 9,152,465 
+missing values across 67 features.
+- The features related to building information had the highest prevalence of 
+missing values, exceeding 20%, up to nearly 70% missing values.
+- Critical features, such as 'EXT_SOURCE_1,' 'EXT_SOURCE_2,' and 'EXT_SOURCE_3,'
+were found to have notable missing values, but they were retained due to their 
+strong predictive power.
+- 'AMT_ANNUIT' and 'CNT_FAM_MEMBERS', had a small amount of missing data, and 
+were found to have some predictive stay. They appeared to be suitable candidates
+for imputation.
+
+**Imputation and Feature Removal**
+
+  - Features with more than 20% missing values, primarily building-related, 
+  were removed to streamline the dataset.
+  - Imputation using the mean was applied to critical features, ensuring that 
+  valuable insights were retained.
+  - Log scaling was considered for data transformation if necessary.
+  
+**Data Quality and Anomalies**
+
+- Outliers in certain numerical features may require further investigation and 
+potential treatment.
+- R between features and the target variable (loan default), uncovered some 
+insights:
+  - Income-related features, 'AMT_INCOME_TOTAL,' 'AMT_CREDIT,' and 
+  'AMT_ANNUITY,' displayed strong correlations with default risk. 
+  Higher-income and credit amounts were associated with lower default likelihood.
+  - 'NAME_EDUCATION_TYPE' indicated that clients with higher education levels 
+  were less likely to default.
+  - Demographic factors, such as age and gender, influenced default rates, 
+  with older clients and females being less likely to default.
+  - 'EXT_SOURCE_1,' 'EXT_SOURCE_2,' and 'EXT_SOURCE_3' were normalized scores 
+  showing strong negative correlations with default, making them crucial 
+  for modeling.
+  
+**Data Transformation**
+
+- Some features had right-skewed distributions and applied log scaling to 
+achieve a more normal distribution such as AMT_INCOME_TOTAL, AMT_CREDIT,
+AMT_ANNUITY.
+- The transformed data revealed insights into the relationships between 
+features and default risk.
+
+**Feature Redundancy**
+
+- Cases of feature redundancy were identified such as 'NAME_FAMILY_STATUS' 
+that appeared to be overlapping with 'CNT_FAM_MEMBERS' and 'FLAG_OWN_REALTY.'
+- To reduce dimensionality, more informative features were kept while those 
+that appeared less informative were dropped.
+
+**Target Imbalance**
+
+- The target variable was found to be imbalanced, with only 8% of loans in 
+default.
+- There is a  challenge of imbalanced data that will be addressed it during 
+model training, ensuring appropriate evaluation metrics are used.
+
+**Implications**
+
+Findings and insights from this data exploration lay the groundwork for 
+developing a robust predictive model for loan default risk. The following 
+implications arose from the analysis:
+
+1. **Feature Selection**: Several strong predictors of default, such as 
+income-related features and normalized scores ('EXT_SOURCE_1,' 'EXT_SOURCE_2,' 
+'EXT_SOURCE_3') were identified and will likely play a crucial role in our 
+predictive model.
+
+2. **Data Preprocessing**: Missing data was imputed, removing irrelevant and i
+mputing critical features. Outliers have been identified and may need to be 
+handled appropriately.
+
+3. **Data Transformation**: Log scaling has been applied where necessary to 
+achieve more normal distributions, enhancing the modeling process.
+
+4. **Imbalanced Data**: The target variable's imbalance will be managed 
+during model training using techniques like oversampling, undersampling, 
+or the use of appropriate evaluation metrics. The final check of the target 
+balance shows that the data is still imbalanced, but
+slightly not as bad as before with the minority case of default = Yes rising to
+8.7% from 8.1%.
+
+5. **Feature Engineering**: There are opportunities for feature engineering, 
+including combining redundant features and exploring interaction effects.
+
+6. **Model Development**: Armed with a cleaner, more informative dataset, the 
+data should be prepared to proceed with model development, which will be the 
+next analysis phase.
+
+In conclusion, this data exploration has provided a deep understanding of the 
+dataset, allowing for informed decisions about data preprocessing, feature 
+selection, and model development. These insights will guide the next steps 
+toward building a predictive model that aids Home Credit in assessing loan 
+default risk effectively.
+

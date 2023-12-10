@@ -1,0 +1,991 @@
+---
+title: "Home Credit Default Kaggle Competition"
+author: "Louis Ackumey, Ian Donaldson, Michael Tom, Andrew Walton"
+date: "2023-11-05"
+output: 
+  html_document:
+    toc: true
+    toc_float:
+      toc_collapsed: true
+    toc_depth: 5
+    theme: simplex
+    highlight: zenburn
+---
+# Introduction
+
+## Project Goal
+In this exploration, we aim to delve into Home Credit's dataset, with a focus 
+on understanding crucial features and identifying any necessary data cleaning 
+processes. Our ultimate objective is to create a predictive model capable of 
+determining whether a customer will successfully repay a loan or default.
+
+## Business Problem
+Home Credit operates in rapidly growing and developing markets where many 
+consumers are "unbanked," lacking traditional credit scores common in more 
+developed economies. To maintain acceptable levels of loan losses while 
+expanding its lending portfolio, Home Credit requires a predictive model that 
+leverages alternative data sources, such as transactional information and 
+telecommunications data, to assess the likelihood of customer loan default.
+
+## Analytics Problem
+Our analytics problem centers around building a machine-learning classification 
+model that predicts loan defaults. Historical data from past customers in the 
+training dataset, including transactional and telco information, will serve as 
+input features. This model will then be used to predict the probability of 
+default for previously unseen customers in the test dataset with effectiveness
+measured by AUC-ROC.
+
+## Purpose of  Notebook
+This notebook will serve as a guide for the data preparation, modeling
+processes, and modeling selection. 
+
+## Questions About Data
+As part of our exploration, answers to the following questions will be sought:
+- Can the features of data be categorized into a set of general topics?
+- How many missing values are there in each column?  
+- How many total missing values are there  
+- Is the target variable (loan default) balanced or unbalanced, and what is 
+the percentage distribution?  
+- What accuracy can be achieved with a simple majority class classifier?  
+- What are key issues with the unprocessed data?  
+- Are there any strong predictors that should be included in our predictive 
+model?  
+- What is the extent of missing data, and what strategies should be employed 
+to handle it?  
+- Are there any outliers in the data, and how should they be handled?  
+- Do the data values align with expectations, and are there any erroneous 
+values requiring cleaning?    
+- Are there any columns with near-zero or zero variance?    
+- Will data transformation be necessary to prepare it for modeling?    
+
+
+# Setup
+
+```{r lib setup and data load, warning=FALSE, message=FALSE}
+#Length Output Silenced for Readability
+#load packages
+
+library('tidyverse')
+library('skimr')
+library('janitor')
+library('caret')
+library('tictoc')
+library('car')
+library('corrplot')
+library('glmnet')
+library('lares')
+library('e1071')
+library('ROCR')
+library('missForest')
+library('ISLR')
+library('pROC')
+library('ROSE')
+library('rminer')
+
+#load data
+#add additional files back if needed
+# sample_submission <- read_csv("sample_submission.csv")
+# previous_application <- read_csv("previous_application.csv")
+# POS_cash_balance <- read_csv("POS_cash_balance.csv")
+# installments_payments <- read_csv("installments_payments.csv")
+# HomeCredit_columns_description <- read_csv("HomeCredit_columns_description.csv")
+# credit_card_balance <- read_csv("credit_card_balance.csv")
+# bureau <- read_csv("bureau.csv")
+# bureau_balance <- read_csv("bureau_balance.csv")
+# application_test <- read_csv("application_test.csv")
+application_train <- read_csv("application_train.csv")
+
+#start tic toc
+tic()
+
+```
+
+Libraries and data loaded, tic toc started.
+
+
+# Data Preparation
+
+```{r EDA cleanup}
+#Remove features identified in EDA and SK_ID_CURR
+
+clean_train <- application_train
+
+
+clean_train <- clean_train %>%
+  select(-CNT_CHILDREN, -AMT_GOODS_PRICE, 
+         -NAME_TYPE_SUITE, -NAME_FAMILY_STATUS,
+         -NAME_HOUSING_TYPE, -REGION_POPULATION_RELATIVE, 
+         -FLAG_MOBIL, -FLAG_CONT_MOBILE,-FLAG_EMP_PHONE, 
+         -OCCUPATION_TYPE, -REGION_RATING_CLIENT, 
+         -WEEKDAY_APPR_PROCESS_START, -HOUR_APPR_PROCESS_START, 
+         -REG_REGION_NOT_LIVE_REGION, -REG_REGION_NOT_WORK_REGION, 
+         -REG_CITY_NOT_WORK_CITY, -LIVE_CITY_NOT_WORK_CITY, 
+         -REG_CITY_NOT_WORK_CITY,-OBS_30_CNT_SOCIAL_CIRCLE, 
+         -DEF_30_CNT_SOCIAL_CIRCLE, -OBS_60_CNT_SOCIAL_CIRCLE,
+         -DEF_60_CNT_SOCIAL_CIRCLE, -DAYS_LAST_PHONE_CHANGE, 
+         -FLAG_DOCUMENT_2, -FLAG_DOCUMENT_4, 
+         -FLAG_DOCUMENT_5, -FLAG_DOCUMENT_6, 
+         -FLAG_DOCUMENT_7, -FLAG_DOCUMENT_8, 
+         -FLAG_DOCUMENT_9, -FLAG_DOCUMENT_10,
+         -FLAG_DOCUMENT_11, -FLAG_DOCUMENT_12, 
+         -FLAG_DOCUMENT_13, -FLAG_DOCUMENT_14,
+         -FLAG_DOCUMENT_15, -FLAG_DOCUMENT_16, 
+         -FLAG_DOCUMENT_17, -FLAG_DOCUMENT_18,
+         -FLAG_DOCUMENT_19, -FLAG_DOCUMENT_20, 
+         -FLAG_DOCUMENT_21, -AMT_REQ_CREDIT_BUREAU_HOUR, 
+         -AMT_REQ_CREDIT_BUREAU_DAY, -AMT_REQ_CREDIT_BUREAU_WEEK, 
+         -AMT_REQ_CREDIT_BUREAU_MON,-AMT_REQ_CREDIT_BUREAU_QRT, 
+         -AMT_REQ_CREDIT_BUREAU_YEAR)
+
+#Remove SK_ID_CURR
+clean_train <- clean_train %>%
+  select(-SK_ID_CURR)
+
+```
+
+
+
+
+
+Predictors identified as weak or potentially not useful during EDA removed to
+simply the dataset. SK_ID_CURR removed as it is a unique identifier. 
+FLAG_DOCUMENT_3 was not removed as indicated in EDA as later analysis 
+showed predictive power.
+
+```{r outliers and potential errors}
+
+#Drop CODE_GENDER rows where value is XNA
+clean_train <- clean_train %>% 
+  filter(CODE_GENDER != "XNA")
+
+#Set CODE_GENDER to factor now that XNA is gone
+clean_train$CODE_GENDER <- as.factor(clean_train$CODE_GENDER)
+
+#Unique Values for CODE_GENDER
+#unique(clean_train$CODE_GENDER)
+
+
+#Set DAYS_EMPLOYED to NA where value is 365243
+clean_train <- clean_train %>% 
+  mutate(DAYS_EMPLOYED = ifelse(DAYS_EMPLOYED == 365243, 
+                                NA, DAYS_EMPLOYED))
+
+#Convert any columns with all negative values to positive values using absolute
+#for skewness later on
+clean_train$DAYS_BIRTH <- abs(clean_train$DAYS_BIRTH)
+clean_train$DAYS_EMPLOYED <- abs(clean_train$DAYS_EMPLOYED)
+clean_train$DAYS_REGISTRATION <- abs(clean_train$DAYS_REGISTRATION)
+clean_train$DAYS_ID_PUBLISH <- abs(clean_train$DAYS_ID_PUBLISH)
+
+#Validate no columns left with negative values
+#skim(clean_train)
+
+
+#Show summary, comment out for brevity
+#summary(clean_train)
+
+```
+4 XNAs existed for CODE_GENDER so they were dropped. DAYS_EMPLOYED had 55374
+values of 365243, which is 1000 years. These were converted to NA. All columns
+with negative values were converted to positive values using absolute to 
+allow skewness transformations to work.
+
+
+```{r dummy variables and one hot encoding}
+
+# #Remove Organization Type
+# clean_train <- clean_train %>% 
+#   select(-ORGANIZATION_TYPE)
+# 
+# #Catagorical variables remaining
+# clean_train %>% 
+#   select_if(~!is.numeric(.)) %>% 
+#   names()
+# 
+# #Create dummy variables for categorical variables
+# 
+# #Gather nonnumeric variables
+# nonnumeric <- clean_train %>% 
+#   select_if(~!is.numeric(.)) %>% 
+#   names()
+# 
+# #Update nonnumeric to one-hot encoding for the non-numeric features
+# dummy <- dummyVars(~., data = clean_train[, nonnumeric])
+# one_hot_encode <- predict(dummy, newdata = clean_train)
+# 
+# #Send encoded variables back to clean_train
+# clean_train <- cbind(clean_train, one_hot_encode)
+# 
+# summary(clean_train)
+
+```
+
+Categorical variables were converted to dummy variables using one-hot encoding.
+Organization Type was originally hot encoded, but ended up very noisy and added
+very little to variable importance. It was removed. In the end factors seemed
+better overall then one-hot encoding, so the code was commented out.
+
+
+
+```{r NAs cleanup}
+
+#Retain EXT_SOURCE_1 by imputing median before removing NAs
+clean_train$EXT_SOURCE_1[is.na(clean_train$EXT_SOURCE_1)] <- median(clean_train$EXT_SOURCE_1, na.rm = TRUE)
+
+#Set NaNs in ORGANIZATION_TYPE to Undisclosed
+clean_train$ORGANIZATION_TYPE[clean_train$ORGANIZATION_TYPE == "XNA"] <- "Undisclosed"
+
+#Number of columns
+ncol(clean_train)
+
+
+#Set NA threshold
+NAthreshold <- 0.2
+
+#Columns with NA percentage
+missing <- colMeans(is.na(clean_train))
+
+
+#Remove columns with a percentage of NA values above the threshold
+clean_train <- clean_train[, missing <= NAthreshold]
+
+
+#Number of columns
+ncol(clean_train)
+
+#show summary, comment out for brevity
+summary(clean_train)
+```
+
+NAthreshold was set to 20% and columns with NA values above that 
+threshold were removed.
+
+
+```{r impute NAs}
+
+#Impute rest of NAs with median
+clean_train <- clean_train %>% mutate_if(is.numeric, 
+                                         funs(replace(., is.na(.), 
+                                                      median(., na.rm = TRUE))))
+
+#Count of NAs
+sum(is.na(clean_train))
+
+#Number of columns
+ncol(clean_train)
+
+#show summary, comment out for brevity
+#summary(clean_train)
+```
+EXT_SOURCE_1 was retained by imputing the median before removing NAs. The rest of the
+NAs were imputed with the median.
+
+
+```{r factorize}
+
+clean_train$TARGET <- factor(clean_train$TARGET)
+
+#Convert non numeric to factors
+clean_train <- clean_train %>% 
+  mutate_if(is.character, as.factor)
+
+#Show Factors in clean_train, comment out for brevity
+#str(clean_train)
+
+
+
+```
+TARGET was converted to a factor. All non numeric columns were converted to factors.
+
+
+```{r log skewness transform}
+#Add log transformed features
+clean_train <- clean_train %>% 
+  mutate(log_AMT_INCOME_TOTAL = log(AMT_INCOME_TOTAL),
+         log_AMT_CREDIT = log(AMT_CREDIT),
+         log_AMT_ANNUITY = log(AMT_ANNUITY))
+
+#Drop non log columns
+clean_train <- clean_train %>% 
+  select(-AMT_INCOME_TOTAL, -AMT_CREDIT, -AMT_ANNUITY)
+
+```
+
+
+
+```{r top correlated vars}
+
+#Display top 15 correlated variables with p value greater than 0.05
+corr_cross(clean_train,
+           max_pvalue = 0.05,
+           top = 15
+           )
+
+#Remove highly correlated variables to reduce multicollinearity
+ clean_train <- clean_train %>% 
+   select(         
+          -log_AMT_ANNUITY,
+          -ORGANIZATION_TYPE
+          )
+ 
+ #Display top 15 correlated variables with p value greater than 0.05
+ corr_cross(clean_train,
+            max_pvalue = 0.05,
+            top = 15
+            )
+ 
+
+#Check VIF
+vif(glm(TARGET ~ ., data = clean_train, family = "binomial"))
+
+#Show summary, comment out for brevity
+#summary(clean_train)
+
+
+```
+Correlation between predictors examined, anything over 70% removed to reduce
+multicollinearity. VIF was checked to ensure no multicollinearity remained.
+Although many variables were already removed during EDA as they appeared to 
+overlap. 
+
+```{r save preprocessed apptrain}
+#write clean_train to csv
+write.csv(clean_train, "clean_train.csv", row.names = FALSE)
+
+```
+
+
+```{r clean data, warning=FALSE, message=FALSE}
+#load data
+clean_train <- read_csv('clean_train.csv') %>% 
+  mutate_if(is.character, as.factor)
+
+#set TARGET Variable as Factor with No and Yes for Levels (caret errors otherwise)
+clean_train$TARGET <- factor(clean_train$TARGET, 
+                             levels = c(0, 1), labels = c('No', 'Yes'))
+
+```
+
+
+Load packages and the preprocessed data.
+
+# Logistic Regression Modeling
+
+```{r base logistic, warning=FALSE, message=FALSE}
+
+#Validate Distribution of Target Variable
+prop.table(table(clean_train$TARGET))
+
+#time
+tic()
+
+#Logistic Model
+logicModel <- glm(TARGET ~ ., data = clean_train, family = binomial(link = 'logit'))
+
+#time
+toc()
+
+#Summary of Model
+summary(logicModel)
+
+```
+
+Based on distribution of TARGET variable only 8.07% of customers defaulted on
+their loans. This is an unbalanced dataset, and we will need to address this
+in our modeling. The base logistic model with all variables from preprocessing 
+ran in 7.5 seconds. AIC of base is 154960. 
+
+```{r varImp, warning=FALSE, message=FALSE}
+
+#Variable Importance
+varImp(logicModel, scale = TRUE)
+
+#Select Important variables over ~8% importance
+varImp8 <- varImp(logicModel, scale = TRUE) %>% 
+  as.data.frame() %>% 
+  rownames_to_column() %>% 
+  filter(Overall > 8)
+
+#Display Important Variables
+varImp8
+
+```
+Predictor selection for the logihis was accomplished using varImp() to determine the most
+important variables in the logistic model. Variables with an importance of
+greater than 8% were selected for further analysis. After initial preprocessing 
+of data this identified the following predictors: NAME_CONTRACT_TYPE,
+CODE_GENDER, FLAG_OWN_CAR+DAYS_EMPLOYED, DAYS_ID_PUBLISH, 
+REGION_RATING_CLIENT_W_CITY, EXT_SOURCE_1, EXT_SOURCE_, EXT_SOURCE_3
+, FLAG_DOCUMENT_3, and log_AMT_CREDIT. 
+
+
+```{r traincntrl, warning=FALSE, message=FALSE}
+#set train control for downsampled data
+traincntrlDown <- trainControl(method = 'repeatedcv',
+                             number = 5,
+                             repeats = 2,
+                             classProbs = TRUE, 
+                             sampling = "down",
+                             summaryFunction = twoClassSummary)
+
+#set train control for upsampled data
+traincntrlUp <- trainControl(method = 'repeatedcv',
+                             number = 5,
+                             repeats = 2,
+                             classProbs = TRUE, 
+                             sampling = "up",
+                             summaryFunction = twoClassSummary)
+
+```
+
+Set train control for downsampled and upsampled data using repeatee cross
+validation with 5 folds and 2 repeats. Class probabilities are set to true. 
+Downsampling and upsampling are used to test addressing the unbalanced dataset.
+
+
+```{r split data, warning=FALSE, message=FALSE}
+#Split train and test 70/30
+set.seed(123)
+
+#Create index for 70/30 split
+inTrain <- createDataPartition(clean_train$TARGET, p = 0.7, list = FALSE)
+
+#Create train and test datasets
+appTrain <- clean_train[inTrain, ]
+appTest <- clean_train[-inTrain, ]
+
+#Check distribution of target variable in train and test
+prop.table(table(appTrain$TARGET))
+prop.table(table(appTest$TARGET))
+
+```
+
+Split data into 70% train and 30% test sets. The target variable is still unbalanced
+in the train and test sets at 8.07%. 
+
+
+```{r logistic base and sampling regression, warning=FALSE, message=FALSE}
+
+#time
+tic()
+
+#Create logistic model with only important variables
+logitModel <- glm(TARGET ~ NAME_CONTRACT_TYPE+CODE_GENDER+
+                    FLAG_OWN_CAR+DAYS_EMPLOYED+
+                    DAYS_ID_PUBLISH+REGION_RATING_CLIENT_W_CITY+
+                    EXT_SOURCE_1+EXT_SOURCE_2+
+                    EXT_SOURCE_3+FLAG_DOCUMENT_3+
+                    log_AMT_CREDIT, data = clean_train, 
+                  family = binomial(link = 'logit'))
+
+#time
+toc()
+
+
+#time
+tic()
+
+logitModelDown <- train(TARGET ~ NAME_CONTRACT_TYPE+CODE_GENDER+
+                    FLAG_OWN_CAR+DAYS_EMPLOYED+
+                    DAYS_ID_PUBLISH+REGION_RATING_CLIENT_W_CITY+
+                    EXT_SOURCE_1+EXT_SOURCE_2+
+                    EXT_SOURCE_3+FLAG_DOCUMENT_3+
+                    log_AMT_CREDIT, data = clean_train,
+                    method = "glm",
+                    trControl = traincntrlDown)
+
+#time
+toc()
+     
+#time
+tic()
+
+logitModelUp <- train(TARGET ~ NAME_CONTRACT_TYPE+CODE_GENDER+
+                    FLAG_OWN_CAR+DAYS_EMPLOYED+
+                    DAYS_ID_PUBLISH+REGION_RATING_CLIENT_W_CITY+
+                    EXT_SOURCE_1+EXT_SOURCE_2+
+                    EXT_SOURCE_3+FLAG_DOCUMENT_3+
+                    log_AMT_CREDIT, data = clean_train,
+                    method = "glm",
+                    trControl = traincntrlUp)
+toc()
+
+#Compare AIC of models
+summary(logitModel)
+summary(logitModelDown)
+summary(logitModelUp)
+
+
+```
+
+Balancing models using trainctrl show 
+a lower the signficantly from the base (155979), for the
+upsample(685579), and downsample(60235) mdoels.
+All predictors are significant regardless of sampling model run. Using only
+the 8 important predictors identified drops run time for the base model from
+7.5 seconds to 1.3 seconds. The downsampled model with 8 predictors took 11.7 
+seconds to train, and the upsampled model with 8 predictors took 30.9 seconds to
+train.
+
+
+```{r logistic model balanced both up and downsampled, warning=FALSE, message=FALSE}
+
+#Balanced data set with both over and under sampling
+data.balanced.ou <- ovun.sample(TARGET~., data=appTrain,
+                                N=nrow(appTrain), p=0.5, 
+                                seed=1, method="both")$data
+
+#Check distribution of target variable in balanced data
+table(data.balanced.ou$TARGET)
+
+#Balanced data set with over-sampling
+data.balanced.over <- ovun.sample(TARGET~., data=appTrain, 
+                                  p=0.5, seed=1, 
+                                  method="over")$data
+
+#Check distribution of target variable in oversampled 
+table(data.balanced.over$TARGET)
+
+#Balanced data set with under-sampling
+data.balanced.under <- ovun.sample(TARGET~., data=appTrain, 
+                                   p=0.5, seed=1, 
+                                   method="under")$data
+
+#Check distribution of target variable in undersampled data
+table(data.balanced.under$TARGET)
+
+
+#time
+tic()
+
+#Logistic Model with balanced data
+logicModelou<- glm(TARGET ~ NAME_CONTRACT_TYPE+CODE_GENDER+
+                    FLAG_OWN_CAR+DAYS_EMPLOYED+
+                    DAYS_ID_PUBLISH+REGION_RATING_CLIENT_W_CITY+
+                    EXT_SOURCE_1+EXT_SOURCE_2+
+                    EXT_SOURCE_3+FLAG_DOCUMENT_3+
+                    log_AMT_CREDIT, data = data.balanced.ou, 
+                  family = binomial(link = 'logit'))
+
+#time
+toc()
+
+#Distribution of target variable in balanced data
+table(data.balanced.ou$TARGET)
+
+#Summary of Logistic Model over/under
+summary(logicModelou)
+
+
+#time
+tic()
+
+#Logistic Model with balanced data using upsampled data
+logicModelover <- glm(TARGET ~ NAME_CONTRACT_TYPE+CODE_GENDER+
+                    FLAG_OWN_CAR+DAYS_EMPLOYED+
+                    DAYS_ID_PUBLISH+REGION_RATING_CLIENT_W_CITY+
+                    EXT_SOURCE_1+EXT_SOURCE_2+
+                    EXT_SOURCE_3+FLAG_DOCUMENT_3+
+                    log_AMT_CREDIT, data = data.balanced.over, 
+                  family = binomial(link = 'logit'))
+
+#time
+toc()
+
+#Distribution of target variable in balanced data
+table(data.balanced.over$TARGET)
+
+#Summary of Logistic Model over
+summary(logicModelover)
+
+#time
+tic()
+
+#Logistic Model with balanced data using downsampled data
+logicModelunder <- glm(TARGET ~ NAME_CONTRACT_TYPE+CODE_GENDER+
+                    FLAG_OWN_CAR+DAYS_EMPLOYED+
+                    DAYS_ID_PUBLISH+REGION_RATING_CLIENT_W_CITY+
+                    EXT_SOURCE_1+EXT_SOURCE_2+
+                    EXT_SOURCE_3+FLAG_DOCUMENT_3+
+                    log_AMT_CREDIT, data = data.balanced.under, 
+                  family = binomial(link = 'logit'))
+#time
+toc()
+
+#Distribution of target variable in balanced data
+table(data.balanced.under$TARGET)
+
+#Summary of Logistic Model under
+summary(logicModelunder)
+
+```
+Used ovun.sample to create balanced data sets with both over and under sampling,
+then over sampling, and then under sampling. The AIC of under sampled model is 
+significantly lower than the base model and the over sampled model. 
+The AIC of the under sampled model is 42162, the balanced model
+with both under/over sampling is 260983, and the over sampled model is 480238. 
+The timing of the the balanced models with 8 top predictors is 0.78 seconds for
+the model with both under/over sampling, 1.1 seconds for the over sampled model,
+and 0.9 seconds for the under sampled model. The under sampled model is the best
+is the best model to use for the logistic regression based on its AIC.
+
+
+```{r polynomial downsampled model, warning=FALSE, message=FALSE}
+
+#time
+tic()
+
+#Test polynomial model on EXT_SOURCE_*
+logicModelunderpoly1 <- glm(TARGET ~ NAME_CONTRACT_TYPE+CODE_GENDER+
+                    FLAG_OWN_CAR+DAYS_EMPLOYED+
+                    DAYS_ID_PUBLISH+REGION_RATING_CLIENT_W_CITY+
+                    poly(EXT_SOURCE_1,2)+poly(EXT_SOURCE_2,2)+
+                    poly(EXT_SOURCE_3,2)+FLAG_DOCUMENT_3+
+                    log_AMT_CREDIT, data = appTrain,
+                    family = binomial(link = 'logit'))
+
+#time
+toc()
+
+summary(logicModelunderpoly1)
+
+#time
+tic()
+
+#Test polynomial model on EXT_SOURCE_*
+logicModelunderpoly2 <- glm(TARGET ~ NAME_CONTRACT_TYPE+CODE_GENDER+
+                    FLAG_OWN_CAR+DAYS_EMPLOYED+
+                    DAYS_ID_PUBLISH+REGION_RATING_CLIENT_W_CITY+
+                    poly(EXT_SOURCE_1,2)+poly(EXT_SOURCE_2,1)+
+                    poly(EXT_SOURCE_3,2)+FLAG_DOCUMENT_3+
+                    log_AMT_CREDIT, data = appTrain,
+                    family = binomial(link = 'logit'))
+
+#time
+toc()
+
+summary(logicModelunderpoly2)
+
+
+```
+
+Using undersample data set, tested polynomials on EXT_SOURCE* and found that 
+EXT_SOURCE_1 and EXT_SOURCE_3 are significant. 
+EXT_SOURCE_2 is not significant when using polynomials. 
+Removed polynomial on EXT_SOURCE_2 and
+retested model. AIC of model with polynomials increases so we will discard.
+Both undersampled polynomial models took roughly 1.1 seconds to train.
+
+
+
+```{r step model to find interactions, warning=FALSE, message=FALSE}
+
+#step model to find best interactions
+#commented out due to time to run and length of output
+
+# step_model <- step(logicModelunder, 
+#                    scope = list(lower = logicModelunder, 
+#                     upper = ~. * (NAME_CONTRACT_TYPE+CODE_GENDER+
+#                                     FLAG_OWN_CAR+DAYS_EMPLOYED+
+#                                     DAYS_ID_PUBLISH+REGION_RATING_CLIENT_W_CITY+
+#                                     EXT_SOURCE_1+EXT_SOURCE_2+
+#                                     EXT_SOURCE_3+FLAG_DOCUMENT_3+
+#                                     log_AMT_CREDIT)), 
+#                    direction = "both", trace = 2)
+# 
+# summary(step_model)
+
+# step_model <- step(logicModelover, 
+#                    scope = list(lower = logicModelover, 
+#                     upper = ~. * (NAME_CONTRACT_TYPE+CODE_GENDER+
+#                                     FLAG_OWN_CAR+DAYS_EMPLOYED+
+#                                     DAYS_ID_PUBLISH+REGION_RATING_CLIENT_W_CITY+
+#                                     EXT_SOURCE_1+EXT_SOURCE_2+
+#                                     EXT_SOURCE_3+FLAG_DOCUMENT_3+
+#                                     log_AMT_CREDIT)), 
+#                    direction = "both", trace = 2)
+# 
+# summary(step_model)
+
+```
+
+Step model found a model that performed slightly better with interactions 
+for downsampling between DAYS_ID_PUBLISH:FLAG_DOCUMENT_3, 
+NAME_CONTRACT_TYPE:CODE_GENDER, NAME_CONTRACT_TYPE:FLAG_OWN_CAR,
+DAYS_EMPLOYED:FLAG_DOCUMENT_3, DAYS_ID_PUBLISH:EXT_SOURCE_1, 
+ODE_GENDER:EXT_SOURCE_1, EXT_SOURCE_1:FLAG_DOCUMENT_3 + 
+NAME_CONTRACT_TYPE:DAYS_EMPLOYED,CODE_GENDER:EXT_SOURCE_3,
+FLAG_OWN_CAR:EXT_SOURCE_3,REGION_RATING_CLIENT_W_CITY:EXT_SOURCE_1,
+CODE_GENDER:REGION_RATING_CLIENT_W_CITY.
+
+Step model found a model that performed slightly better with interactions 
+for upsampling but significantly higher AIC of 479164 using the interactions 
+NAME_CONTRACT_TYPE,CODE_GENDER,FLAG_OWN_CAR,
+    DAYS_EMPLOYED,DAYS_ID_PUBLISH,REGION_RATING_CLIENT_W_CITY,
+    EXT_SOURCE_1,EXT_SOURCE_2,EXT_SOURCE_3,FLAG_DOCUMENT_3,
+    log_AMT_CREDIT,CODE_GENDER:EXT_SOURCE_1,NAME_CONTRACT_TYPE:log_AMT_CREDIT,
+    EXT_SOURCE_1:EXT_SOURCE_2,CODE_GENDER:EXT_SOURCE_2,CODE_GENDER:EXT_SOURCE_3,
+    DAYS_ID_PUBLISH:log_AMT_CREDIT,DAYS_ID_PUBLISH:EXT_SOURCE_1,
+    CODE_GENDER:log_AMT_CREDIT,NAME_CONTRACT_TYPE:CODE_GENDER,
+    EXT_SOURCE_1:log_AMT_CREDIT,FLAG_DOCUMENT_3:log_AMT_CREDIT,
+    DAYS_ID_PUBLISH:EXT_SOURCE_3,REGION_RATING_CLIENT_W_CITY:log_AMT_CREDIT,
+    FLAG_OWN_CAR:EXT_SOURCE_3,EXT_SOURCE_2:EXT_SOURCE_3,DAYS_EMPLOYED:EXT_SOURCE_2,
+    DAYS_EMPLOYED:EXT_SOURCE_3,EXT_SOURCE_3:log_AMT_CREDIT,
+    EXT_SOURCE_2:log_AMT_CREDIT,DAYS_EMPLOYED:EXT_SOURCE_1,
+    FLAG_OWN_CAR:DAYS_ID_PUBLISH,NAME_CONTRACT_TYPE:EXT_SOURCE_2,
+    EXT_SOURCE_1:EXT_SOURCE_3,DAYS_EMPLOYED:REGION_RATING_CLIENT_W_CITY,
+    CODE_GENDER:DAYS_EMPLOYED,FLAG_OWN_CAR:REGION_RATING_CLIENT_W_CITY,
+    EXT_SOURCE_2:FLAG_DOCUMENT_3,REGION_RATING_CLIENT_W_CITY:EXT_SOURCE_2,
+    NAME_CONTRACT_TYPE:FLAG_OWN_CAR,NAME_CONTRACT_TYPE:DAYS_EMPLOYED,
+    DAYS_EMPLOYED:FLAG_DOCUMENT_3,CODE_GENDER:DAYS_ID_PUBLISH,
+    FLAG_OWN_CAR:EXT_SOURCE_1,REGION_RATING_CLIENT_W_CITY:EXT_SOURCE_3,
+    NAME_CONTRACT_TYPE:REGION_RATING_CLIENT_W_CITY,CODE_GENDER:FLAG_OWN_CAR,
+    EXT_SOURCE_1:FLAG_DOCUMENT_3,NAME_CONTRACT_TYPE:EXT_SOURCE_3,
+    REGION_RATING_CLIENT_W_CITY:FLAG_DOCUMENT_3,DAYS_ID_PUBLISH:EXT_SOURCE_2,
+    FLAG_OWN_CAR:DAYS_EMPLOYED,FLAG_OWN_CAR:EXT_SOURCE_2.
+
+
+
+```{r interactions, warning=FALSE, message=FALSE}
+
+#time
+tic()
+
+#Downsampled model with interactions
+logicModelunderInt <- glm(formula = TARGET ~ NAME_CONTRACT_TYPE + CODE_GENDER + FLAG_OWN_CAR + 
+    DAYS_EMPLOYED + DAYS_ID_PUBLISH + REGION_RATING_CLIENT_W_CITY + 
+    EXT_SOURCE_1 + EXT_SOURCE_2 + EXT_SOURCE_3 + FLAG_DOCUMENT_3 + 
+    log_AMT_CREDIT + FLAG_OWN_CAR:EXT_SOURCE_1 + DAYS_ID_PUBLISH:FLAG_DOCUMENT_3 + 
+    NAME_CONTRACT_TYPE:CODE_GENDER + NAME_CONTRACT_TYPE:FLAG_OWN_CAR + 
+    DAYS_EMPLOYED:FLAG_DOCUMENT_3 + DAYS_ID_PUBLISH:EXT_SOURCE_1 + 
+    CODE_GENDER:EXT_SOURCE_1 + EXT_SOURCE_1:FLAG_DOCUMENT_3 + 
+    NAME_CONTRACT_TYPE:DAYS_EMPLOYED + CODE_GENDER:EXT_SOURCE_3 + 
+    FLAG_OWN_CAR:EXT_SOURCE_3 + REGION_RATING_CLIENT_W_CITY:EXT_SOURCE_1 + 
+    CODE_GENDER:REGION_RATING_CLIENT_W_CITY, family = binomial(link = "logit"), 
+    data = data.balanced.under)
+#time
+toc()
+
+#Summary of model
+summary(logicModelunderInt)
+
+
+#time
+tic()
+
+#Upsampled model with downsampled interacations
+logicModelunderIntover <- glm(formula = TARGET ~ NAME_CONTRACT_TYPE + CODE_GENDER + FLAG_OWN_CAR + 
+    DAYS_EMPLOYED + DAYS_ID_PUBLISH + REGION_RATING_CLIENT_W_CITY + 
+    EXT_SOURCE_1 + EXT_SOURCE_2 + EXT_SOURCE_3 + FLAG_DOCUMENT_3 + 
+    log_AMT_CREDIT + FLAG_OWN_CAR:EXT_SOURCE_1 + DAYS_ID_PUBLISH:FLAG_DOCUMENT_3 + 
+    NAME_CONTRACT_TYPE:CODE_GENDER + NAME_CONTRACT_TYPE:FLAG_OWN_CAR + 
+    DAYS_EMPLOYED:FLAG_DOCUMENT_3 + DAYS_ID_PUBLISH:EXT_SOURCE_1 + 
+    CODE_GENDER:EXT_SOURCE_1 + EXT_SOURCE_1:FLAG_DOCUMENT_3 + 
+    NAME_CONTRACT_TYPE:DAYS_EMPLOYED + CODE_GENDER:EXT_SOURCE_3 + 
+    FLAG_OWN_CAR:EXT_SOURCE_3 + REGION_RATING_CLIENT_W_CITY:EXT_SOURCE_1 + 
+    CODE_GENDER:REGION_RATING_CLIENT_W_CITY, family = binomial(link = "logit"), 
+    data = data.balanced.over)
+#time
+toc()
+
+#summary
+summary(logicModelunderIntover)
+
+#Upsampled model with upsampled interactions
+
+#time
+tic()
+logicModeloverInt <- glm(formula = TARGET ~ NAME_CONTRACT_TYPE + CODE_GENDER + FLAG_OWN_CAR +
+DAYS_EMPLOYED + DAYS_ID_PUBLISH + REGION_RATING_CLIENT_W_CITY +
+EXT_SOURCE_1 + EXT_SOURCE_2 + EXT_SOURCE_3 + FLAG_DOCUMENT_3 + log_AMT_CREDIT + CODE_GENDER:EXT_SOURCE_1 + NAME_CONTRACT_TYPE:log_AMT_CREDIT + EXT_SOURCE_1:EXT_SOURCE_2 + 
+CODE_GENDER:EXT_SOURCE_2 + CODE_GENDER:EXT_SOURCE_3 + 
+DAYS_ID_PUBLISH:log_AMT_CREDIT + DAYS_ID_PUBLISH: EXT_SOURCE_1 +
+CODE_GENDER:log_AMT_CREDIT + NAME_CONTRACT_TYPE: CODE_GENDER +
+EXT_SOURCE_1:log_AMT_CREDIT + FLAG_DOCUMENT_3:log_AMT_CREDIT +
+DAYS_ID_PUBLISH:EXT_SOURCE_3 + REGION_RATING_CLIENT_W_CITY:log_AMT_CREDIT +
+FLAG_OWN_CAR:EXT_SOURCE_3 + EXT_SOURCE_2:EXT_SOURCE_3 + DAYS_EMPLOYED:EXT_SOURCE_2 +
+DAYS_EMPLOYED:EXT_SOURCE_3 + EXT_SOURCE_3:log_AMT_CREDIT +
+EXT_SOURCE_2:log_AMT_CREDIT + DAYS_EMPLOYED:EXT_SOURCE_1 +
+FLAG_OWN_CAR:DAYS_ID_PUBLISH + NAME_CONTRACT_TYPE :EXT_SOURCE_2 +
+EXT_SOURCE_1:EXT_SOURCE_3 + DAYS_EMPLOYED:REGION_RATING_CLIENT_W_CITY +
+CODE_GENDER:DAYS_EMPLOYED + FLAG_OWN_CAR:REGION_RATING_CLIENT_W_CITY +
+EXT_SOURCE_2:FLAG_DOCUMENT_3 + REGION_RATING_CLIENT_W_CITY:EXT_SOURCE_2 +
+NAME_CONTRACT_TYPE: FLAG_OWN_CAR + NAME_CONTRACT_TYPE:DAYS_EMPLOYED +
+DAYS_EMPLOYED:FLAG_DOCUMENT_3 + CODE_GENDER:DAYS_ID_PUBLISH +
+FLAG_OWN_CAR:EXT_SOURCE_1 + REGION_RATING_CLIENT_W_CITY:EXT_SOURCE_3 +
+NAME_CONTRACT_TYPE: REGION_RATING_CLIENT_W_CITY + CODE_GENDER:FLAG_OWN_CAR +
+EXT_SOURCE_1:FLAG_DOCUMENT_3 + NAME_CONTRACT_TYPE:EXT_SOURCE_3 +
+REGION_RATING_CLIENT_W_CITY:FLAG_DOCUMENT_3 + DAYS_ID_PUBLISH:EXT_SOURCE_2 +
+FLAG_OWN_CAR:DAYS_EMPLOYED + FLAG_OWN_CAR:EXT_SOURCE_2, family = binomial(link = "logit"),
+data = data.balanced.over)
+
+#time
+toc()
+
+#Summary of model
+summary(logicModeloverInt)
+```
+The under sampled model with the step model proposed set of interactions 
+between some of the 8 important predictors took 0.1 seconds to train and had a
+slightly lower AIC of 42068 than the base under sampled model AIC of 42162. 
+The over sampled model using under sampled data for speed had an AIC of 479360
+and took 1.7 seconds to run
+while the over sampled model with the step model proposed set of interactions
+between some of the 8 important predictors had an AIC of 478185 and took 5.2
+seconds to run.
+
+
+# Logistic Regression Predictions
+
+```{r predictions confusion matrix roc auc, warning=FALSE, message=FALSE}
+
+#Predict downsampled with interactions on Test Data
+logicPredunderInt <- predict(logicModelunderInt, appTest, type = 'response')
+
+#Create ROC Curve
+logicROCunderInt <- roc(appTest$TARGET, logicPredunderInt)
+
+#Plot ROC Curve
+plot(logicROCunderInt, col = 'blue', main = 'Logistic Regression ROC Curve')
+
+#Calculate AUC
+auc(logicROCunderInt)
+
+#Threshold to predict 
+logicPredunderInt$predictor <- ifelse(logicPredunderInt > 0.5, "Yes", "No")
+logicPredunderInt$predictor <- as.factor(logicPredunderInt$predictor)
+
+#Confusion Matrix with percentages
+confusionMatrix(logicPredunderInt$predictor, appTest$TARGET, positive = 'Yes')
+
+#Predict downsampled without interactions on Test Data
+logicPredunder <- predict(logicModelunder, appTest, type = 'response')
+
+#Create ROC Curve
+logicROCunder <- roc(appTest$TARGET, logicPredunder)
+
+#Plot ROC Curve
+plot(logicROCunder, col = 'blue', main = 'Logistic Regression ROC Curve')
+
+#Calculate AUC
+auc(logicROCunder)
+
+#Ensure numeric
+logicPredunder <- as.numeric(logicPredunder)
+
+#Threshold to predict 
+logicPredunder$predictor <- ifelse(logicPredunder > 0.5, "Yes", "No")
+logicPredunder$predictor <- as.factor(logicPredunder$predictor)
+
+#Confusion Matrix with percentages
+confusionMatrix(logicPredunder$predictor, appTest$TARGET, positive = 'Yes')
+
+
+#Original Logistic Model with no downsampling
+logicPred <- predict(logitModel, appTest, type = 'response')
+
+
+#Create ROC Curve
+logicROC <- roc(appTest$TARGET, logicPred)
+
+#Plot ROC Curve
+plot(logicROC, col = 'blue', main = 'Logistic Regression ROC Curve')
+
+#Calculate AUC
+auc(logicROC)
+
+
+#Ensure numeric
+logicPred <- as.numeric(logicPred)
+
+#Threshold to predict 
+logicPred$predictor <- ifelse(logicPred > 0.5, "Yes", "No")
+logicPred$predictor <- as.factor(logicPred$predictor)
+
+#Confusion Matrix with percentages
+confusionMatrix(logicPred$predictor, appTest$TARGET, positive = 'Yes')
+
+#Upsample models
+logicPredUp <- predict(logicModelover, appTest, type = 'response')
+
+#Create ROC Curve
+logicROCUp <- roc(appTest$TARGET, logicPredUp)
+
+#Plot ROC Curve
+plot(logicROCUp, col = 'blue', main = 'Logistic Regression ROC Curve')
+
+#Calculate AUC
+auc(logicROCUp)
+
+#Threshold to predict 
+logicPredUp$predictor <- ifelse(logicPredUp > 0.5, "Yes", "No")
+logicPredUp$predictor <- as.factor(logicPredUp$predictor)
+
+#Confusion Matrix with percentages
+confusionMatrix(logicPredUp$predictor, appTest$TARGET, positive = 'Yes')
+
+
+#Upsample with interaction
+logicPredUpInt <- predict(logicModeloverInt, appTest, type = 'response')
+
+#Create ROC Curve
+logicROCoverInt <- roc(appTest$TARGET, logicPredUpInt)
+
+#Plot ROC Curve
+plot(logicROCoverInt, col = 'blue', main = 'Logistic Regression ROC Curve')
+
+#Calculate AUC
+auc(logicROCoverInt)
+
+#Threshold to predict 
+logicPredUpInt$predictor <- ifelse(logicPredUpInt > 0.5, "Yes", "No")
+logicPredUpInt$predictor <- as.factor(logicPredUpInt$predictor)
+
+#Confusion Matrix with percentages
+confusionMatrix(logicPredUpInt$predictor, appTest$TARGET, positive = 'Yes')
+
+
+
+#Upsampled with interaction and downsampled data
+logicPredUpIntunderover <- predict(logicModelunderIntover, appTest, type = 'response')
+
+#Create ROC Curve
+logicROCoverIntunder <- roc(appTest$TARGET, logicPredUpIntunderover)
+
+#Plot ROC Curve
+plot(logicROCoverIntunder, col = 'blue', main = 'Logistic Regression ROC Curve')
+
+#Calculate AUC
+auc(logicROCoverIntunder)
+
+#Threshold to predict 
+logicPredUpIntunderover$predictor <- ifelse(logicPredUpIntunderover > 0.5, "Yes", "No")
+logicPredUpIntunderover$predictor <- as.factor(logicPredUpIntunderover$predictor)
+
+#Confusion Matrix with percentages
+confusionMatrix(logicPredUpIntunderover$predictor, appTest$TARGET, positive = 'Yes')
+```
+
+The base logistic model with 8 important predictors has a very low 
+sensitivity (0.48%), which means it's not effective at identifying loan 
+defaults, likely due to the imbalance of data. The oversampled logistic models,
+both exhibit similar performance characteristics. 
+oversampling w/o interaction has a sensitivity of 65.6% and a precision of 
+15.3%, while oversampling w/interaction has a sensitivity of 67.3% and a 
+precision of 15.2%. These low precision values 
+indicate a significant number of false positives, meaning that cases are 
+predicted as defaults that do not actually default. In the context of lending, 
+where the goal is to minimize the risk of lending to clients who will default, 
+a high precision model may be preferred, however a high sensitivity 
+may also be important to capture as many actual defaults as possible ensuring
+as much money can reliable be lent out as possible to those who won't default.
+
+We would consider this model if logistic turns out to be the best overall model 
+available based on AUC. The logistic model with interactions has an AUC of 
+0.7326, with the under sampled version having an AUC of 0.7320 and the base 8 
+important var model with an AUC of 0.7321. The upsampling model without interaction
+had an AUC of 0.7320 while the oversampled model with interactions had an AUC
+of 0.7337. The upsampled with interaction and downsampled data jad am AIC of
+0.7328.
+
+
