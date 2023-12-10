@@ -7,7 +7,7 @@ Ian Donaldson's Data Science Portfolio
 + **Home Credit Default - IS6812 Capstone Prep Project**
   + *Business Problem Overview and Project Objective:*
         
-    Home Credit operates in rapidly growing and developing markets, catering to "unbanked" consumers without traditional credit scores. Home Credit seeks a predictive model utilizing alternative data sources to mitigate loan losses and expand its lending portfolio. Our project's objective was a comprehensive analysis of Home Credit's dataset, emphasizing crucial feature discovery through extensive EDA and identifying necessary data cleaning processes. The primary goal is to develop a predictive model capable of accurately assessing the likelihood of customer loan default.
+    Home Credit operates in rapidly growing and developing markets, catering to "unbanked" consumers without traditional credit scores. Home Credit seeks a predictive model utilizing alternative data sources to mitigate loan losses and expand its lending portfolio. Our project's objectives included a comprehensive analysis of Home Credit's dataset, emphasizing crucial feature discovery through extensive EDA and identifying necessary data cleaning processes. The primary goal was to develop a predictive model capable of accurately assessing the likelihood of customer loan default.
 
   + *Solution to the Business Problem:*
 
@@ -19,7 +19,7 @@ Ian Donaldson's Data Science Portfolio
 
   + *Business Value of Solution:*
 
-    The recommended logistic model reduces default risks and enhances revenue by minimizing unnecessary loan denials. The expected revenue increase is nearly 200%, providing a significant business advantage. The model's predictive features offer a transparent justification for loan approvals, which is essential for addressing regulatory inquiries.
+    The recommended logistic model reduces default risks and enhances revenue by minimizing unnecessary loan denials. The expected revenue increase is nearly 200%, providing a significant business advantage. The model's predictive features offer a transparent justification for loan approvals and denials, which is essential for addressing regulatory inquiries.
 
   +  *Difficulties Encountered Along the Way:*
 
@@ -27,7 +27,7 @@ Ian Donaldson's Data Science Portfolio
 
   + *Lessons Learned:*
 
-    Key takeaways encompass the importance of meticulous EDA for data insights, maintaining an enjoyable team atmosphere to combat project fatigue, the necessity of creativity in model exploration, setting early timelines to avoid last-minute rushes, and effective audience engagement during p
+    Key takeaways encompass the importance of meticulous EDA for data insights, maintaining an enjoyable team atmosphere to combat project fatigue, the necessity of creativity in model exploration, setting early timelines to avoid last-minute rushes, and effective audience engagement during presentations to enhance interest and understanding.
 
     
 
