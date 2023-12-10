@@ -27,7 +27,7 @@ Ian Donaldson's Data Science Portfolio
 
   + *Lessons Learned:*
 
-    Key takeaways encompass the importance of meticulous EDA for data insights, maintaining an enjoyable team atmosphere to combat project fatigue, the necessity of creativity in model exploration, setting early timelines to avoid last-minute rushes, and effective audience engagement during presentations to enhance interest and understanding.
+    Key takeaways encompass the importance of meticulous EDA for data insights, maintaining an enjoyable team atmosphere to combat project fatigue, the necessity of creativity in model exploration, setting early timelines to avoid last-minute rushes, effective audience engagement during presentations to enhance interest and understanding with more focus more on data story telling and less on the process used.
 
     
 
