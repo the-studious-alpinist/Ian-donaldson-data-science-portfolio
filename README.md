@@ -29,6 +29,12 @@ Ian Donaldson's Data Science Portfolio
 
     Key takeaways encompass the importance of meticulous EDA for data insights, maintaining an enjoyable team atmosphere to combat project fatigue, the necessity of creativity in model exploration, setting early timelines to avoid last-minute rushes, effective audience engagement during presentations to enhance interest and understanding with more focus more on data story telling and less on the process used.
 
+  + *Individual Notebooks:*
+
+    + [EDA](Donaldson_Ian_EDA.Rmd)
+
+    + [Data Prep and Modeling](Home%20Credit%20Default%20Kaggle%20Competition%20Data%20Prep%20and%20Modeling%20Ian.Rmd)
+
     
 
     
