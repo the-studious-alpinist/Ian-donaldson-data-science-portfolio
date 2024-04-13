@@ -9,6 +9,10 @@ Ian Donaldson's Data Science Portfolio
   
     Swire Coca-Cola aims to optimize its innovation product launch strategy by leveraging machine learning and stochastic techniques to predict demand for new beverage products accurately. The project seeks to develop a robust framework for analyzing historical sales data of Swire and competitor products to forecast demand for innovative products, including prescribing optimal product launches, determining expected demand, identifying the best timing and region for each product, potential pricing strategies, and accurately predicting inventory to reduce costs from the risk of over or under ordering revolutionary syrup flavors for established brands. The primary analytic challenge lies in developing accurate predictive models based on historical products for new unseen products that can effectively handle the variability in product release durations and capture the complex factors influencing consumer preferences across different regions. This notebook documents the process and results of the machine learning and stochastic analysis, providing actionable insights for Swire's product launch strategy based on the derived machine learning and stochastic models.
 
++ **Solution to the Analytic Problem:**
+
+  After experimenting with various machine learning algorithms, including logistic regression and XGBoost, the final solution to Swire Coca-Cola's analytic problem involved leveraging Stochastic Weight Averaging (SWA). While XGBoost predicted optimal product launch dates well, its accuracy in forecasting innovation demand unit sales using dummy data was lower than desired. Therefore, the team implemented SWA, a technique that blends the advantages of stochastic optimization with the stability of weighted averaging, to improve predictive performance. By incorporating SWA into the modeling process, the team achieved higher accuracy in forecasting demand for new beverage products, thus providing Swire with actionable insights for its product launch strategy.
+
 ### Kaggle Competitions  
 + **Home Credit Default - IS6812 Capstone Prep Project**
   + *Business Problem Overview and Project Objective:*
