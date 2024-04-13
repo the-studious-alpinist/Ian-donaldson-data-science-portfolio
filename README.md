@@ -5,10 +5,9 @@ Ian Donaldson's Data Science Portfolio
 
 ### University of Utah MSBA Capstone with Sponsor Swire Coca-Cola  
 + **Swire Coca-Cola - IS6813 Capstone Completion**
-  
-+ *Business Problem Overview and Project Objective:*
+  + *Business Problem Overview and Project Objective:*
     
-Swire Coca-Cola aims to optimize its innovation product launch strategy by leveraging machine learning and stochastic techniques to accurately predict demand for new beverage products. The project seeks to develop a robust framework for analyzing historical sales data of Swire and competitor products to forecast demand for new innovation products including prescribing optimal product launches, determining expected demand, identifying the best timing and region for each product, and recommending pricing strategies. The primary analytic challenge lies in developing accurate predictive models based on historical products for new unseen products that can effectively handle the variability in product release durations and capture the complex factors influencing consumer preferences across different regions. This notebook serves to document the process and results of the machine learning and stochastic analysis, providing actionable insights for Swire's product launch strategy based on the derived machine learning and stochastic models.
+  Swire Coca-Cola aims to optimize its innovation product launch strategy by leveraging machine learning and stochastic techniques to predict demand for new beverage products accurately. The project seeks to develop a robust framework for analyzing historical sales data of Swire and competitor products to forecast demand for innovative products, including prescribing optimal product launches, determining expected demand, identifying the best timing and region for each product, and recommending pricing strategies. The primary analytic challenge lies in developing accurate predictive models based on historical products for new unseen products that can effectively handle the variability in product release durations and capture the complex factors influencing consumer preferences across different regions. This notebook documents the process and results of the machine learning and stochastic analysis, providing actionable insights for Swire's product launch strategy based on the derived machine learning and stochastic models.
 
 ### Kaggle Competitions  
 + **Home Credit Default - IS6812 Capstone Prep Project**
