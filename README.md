@@ -65,9 +65,13 @@ Ian Donaldson's Data Science Portfolio
 
   + *Individual Notebooks:*
 
-    + [EDA](Donaldson_Ian_EDA.Rmd)
+    + [EDA - RMD](Donaldson_Ian_EDA.Rmd)
+   
+    + [EDA - HTML]()
 
-    + [Data Prep and Modeling](Home%20Credit%20Default%20Kaggle%20Competition%20Data%20Prep%20and%20Modeling%20Ian.Rmd)
+    + [Data Prep and Modeling - RMD](https://github.com/the-studious-alpinist/Ian-donaldson-data-science-portfolio/blob/main/Swire%20Innovation%20ML)
+   
+    + + [Data Prep and Modeling - HTML]()
 
     
 
