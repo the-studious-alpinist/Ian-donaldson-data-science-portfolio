@@ -1,0 +1,733 @@
+
+---
+title: "EDA - Zero to Coke Hero"
+author: "Ian Donaldson"
+date:  "`r format(Sys.Date(), '%B %d, %Y')`"
+output:
+  html_document:
+    css: custom-styles.css
+    theme: null
+    highlight: null
+    toc: true
+    toc_float: false
+
+---
+
+# Introduction
+
+## Business Problem and Analytic Approach
+
+### Business Problem Statement for Swire Coca-Cola's Innovation Project
+
+#### Business Problem: 
+
+Swire Coca-Cola, a prominent leader in the beverage distribution industry across the Western US, faces the challenge of accurately timing the launch of limited edition "innovation" beverage products. Despite possessing extensive historical sales data and regularly introducing new products, Swire struggles with accurately predicting demand for these innovative, never-before-sold items. These products are pivotal for sustaining customer interest, stimulating demand, and maintaining a competitive edge. However, the risk of overproduction or underestimating demand looms, potentially leading to revenue loss or customer dissatisfaction.
+
+#### The Benefit of a Solution: 
+
+A precise demand forecast for Swire Coca-Cola's innovative products is imperative for the company to meet all potential demand without overproducing, thereby maximizing revenue and elevating customer satisfaction. By strategically launching the right products in suitable regions at optimal times, Swire can attain a market advantage, reinforce its position as an industry trendsetter, and foster brand loyalty among increasingly diverse consumers.
+
+#### Success Metrics: 
+
+The project's success will be gauged based on the accuracy of demand forecasts for the specified innovative products compared to actual sales outcomes. Success metrics encompass the model's capacity to predict location, timing, duration, and units sold for each product launch, furnishing actionable business insights that drive financial gains and amplify market share for essential flavors.
+
+#### Analytics Approach: 
+
+The analytics team will employ Exploratory Data Analysis (EDA) to understand the underlying patterns, Time Series Forecasting techniques (ARIMA and SARIMA models), and Machine Learning algorithms derived from over 24 million observations spanning three years of sales data. Practically, the team must also grapple with the intricacies of this significant market, which encompasses more than 3100 unique products sold across 13 western states with diverse demographics, while considering the costs associated with production overage and underage. This comprehensive approach aims to predict optimal launch periods for new products and discern the attributes and quantities contributing to successful launches. Additionally, the team will adhere to standard data science practices such as data separation into training and test sets to validate model predictions and accurately forecast demand.
+
+#### Scope: 
+
+The project will concentrate on crafting predictive models and generating business insights for seven specified new products. Deliverables include a PowerPoint presentation highlighting key insights, an annotated report delineating the code and model outputs, and all relevant code posted to GitHub for transparency. Future expansions may encompass tailored models for specific brands, locations, or periods to further refine forecasting accuracy.
+
+#### Details: 
+
+The project team comprises four analysts: Ian Donaldson, Michael Tom, Andrew Walton, and Jake Jarrard. The project is slated for completion and presentation to the client on April 11, 2024, with key milestones including exploratory data analysis completion by February 25, model building by March 24, and presentation finalization by April 10. This timeline ensures thorough analysis and model development, culminating in a comprehensive presentation of findings to Swire Coca-Cola.
+
+#### Conclusion: 
+
+By accurately forecasting demand for innovative limited-release beverages, Swire Coca-Cola can make informed decisions to optimize inventory levels, enhance customer satisfaction, and solidify its position as an industry leader in beverage innovation. The collaborative efforts of the analytics team will furnish Swire with the insights needed to navigate the complexities of new product launches successfully.
+
+## Purpose of Notebook
+
+The purpose of this EDA notebook is to identify and analyze the Swire Coca-Cola data set looking for hints and clues on guidance of forecasting innovation products in a time series format. Additional feature engineering and data cleaning will be performed to prepare the data for time series forecasting and machine learning models.
+
+## Questions about Data to Answer
+
+1. What are the unique features in the data set?
+3. What are the data types for each feature?
+4. What are the missing values in the data set?
+5. Are there unique dates in the data set?
+6. Are there unique products in the data set?
+7. Are there unique sales territories in the data set?
+8. What are Swire's unqiue innovation products (flavors, packaging, etc)?
+9. What are top/bottom selling brands?
+10. How do competitors stack up in terms of sales?
+11. What seasons are key revenue drivers for Swire?
+12. Are there intersting financial metrics?
+13. How long do innovation products typically run?
+14. How to identify week 0/start/tenure for each innovaiton product?
+
+# Description of the Data
+
+The data set is a time series data set with 24,000,000+ observations and 13 features. The data set contains sales data for Swire Coca-Cola products across 13 western states. The data set contains sales data for 3 years. The data set contains sales data for 3,100 unique products. The data set contains sales data for 13 unique sales territories. The data set contains sales data for 7 unique innovation products. The data set contains sales data for 10 unique brands. The data set contains sales data for 3 unique competitors. The data set contains sales data for 4 unique seasons. The data set contains sales data for 3 unique financial metrics. The data set contains sales data for 3 unique tenure metrics. 
+
+# Discussion of Missing Data
+
+The data set contains NA values for CALORIC_SEGMENT in its raw form comprising 0.2% (59725 missing values) of the data. Using text analysis on ITEM description, imputation was performed to determine the observation's CALORIC_SEGMENT as either diet/light or regular.
+
+# Exploratory Visualizations and/or Summary Tables
+
+```{r setup, include=FALSE, message = FALSE, warning = FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r loada data and packages, message = FALSE, warning = FALSE}
+# Load the data
+df <- readRDS("~/Documents/R/IS6813/Swire/swire_no_nas.rds")
+#write to csv for other tools
+#write.csv(df, "swire_no_nas.csv")
+```
+
+```{r load packages and set up, message = FALSE, warning = FALSE, echo = FALSE }
+# Load the pacman package
+if (!require("pacman")) install.packages("pacman")
+
+# Use pacman to load (and install if necessary) the specific packages 
+pacman::p_load(data.table, zoo, lubridate, tidyverse, 
+               readr, skimr, ggplot2, parallel, doParallel, scales)
+
+#set any parallel processing options
+doParallel::registerDoParallel(cores = 7)
+
+
+```
+
+> Load the data, packages, and set things up.
+
+```{r additional feature engineering beyond NA removal, message = FALSE, warning = FALSE}
+#season column based on date
+df <- df %>%
+  mutate(MONTH = month(ymd(df$DATE)), # Extract month from the date
+         SEASON = case_when(
+           MONTH %in% c(12, 1, 2) ~ "WINTER",
+           MONTH %in% c(3, 4, 5) ~ "SPRING",
+           MONTH %in% c(6, 7, 8) ~ "SUMMER",
+           MONTH %in% c(9, 10, 11) ~ "FALL",
+           TRUE ~ NA_character_ 
+         ))
+
+#sales per unit
+df <- df %>%
+  mutate(SINGLE_PRICE = DOLLAR_SALES / UNIT_SALES)
+
+```
+
+> Months broken up into seasons for potential feature engineering uses, along with sales per unit.
+
+
+```{r OVERVIEW, message = FALSE, warning = FALSE}
+#check df class
+class(df)
+
+#check df structure
+str(df)
+
+#check df head
+head(df)
+
+#NAs
+sum(is.na(df))
+
+
+#skim df
+skim(df)
+
+
+```
+
+> There are 59725 missing values in the original dataset. After imputing NAs based on text data (seperate steps from Jake), we are left with 0 missing values. Many features are characters and should be converted to factors. The data is not duplicated. We have 152 unique DATEs (weeks) in the data set, which indicates that there is weekly data for nearly 3 years without any fulling missing weeks. There are 2 CALORIC_SEGMENTS, diet and regular;5 CATEGORIES;  8 MANUFACTURERS; 319 BRANDS; 103 PACKAGE types; 3692 unique ITEM descriptions.
+
+
+
+```{r fix character types, message = FALSE, warning = FALSE}
+#convert date to date type
+df$DATE <- as.Date(df$DATE)
+
+
+
+#factorize
+df <- df %>%
+  mutate(BRAND = as.character(BRAND),
+         PACKAGE = as.character(PACKAGE)) %>%
+  mutate(across(c(BRAND, PACKAGE, CATEGORY, MANUFACTURER, SEASON), ~as.factor(.)))
+
+
+#one hot encode CALORIC_SEGMENT as 0 or 1
+df <- df %>%
+mutate(across(CALORIC_SEGMENT, ~ifelse(. == "REGULAR", 1, 0)))
+
+
+# Print the result
+#validate data types
+summary(df)
+
+```
+
+> After feature data type conversion, the data is ready for exploratory data analysis.
+
+```{r unique features of brands for swire questions, message = FALSE, warning = FALSE}
+
+#echo BRAND name and spacing
+cat("\n DIET SMASH \n")
+
+#BRAND == DIET SMASH
+df %>%
+  filter(BRAND == "DIET SMASH") %>%
+  select(MANUFACTURER,CALORIC_SEGMENT, CATEGORY, PACKAGE, ) %>%
+  summary()
+
+
+#echo BRAND name and spacing
+cat("\n SPARKLING JACCEPTABLETLESTER \n")
+
+#BRAND == JACCEPTABLETESTER
+df %>%
+  filter(BRAND == "SPARKLING JACCEPTABLETLESTER") %>%
+  select(MANUFACTURER,CALORIC_SEGMENT, CATEGORY, PACKAGE) %>%
+  summary()
+
+#echo BRAND name and spacing
+cat("\n VENOMOUS BLAST \n")
+
+#BRAND == VENOMOUS BLAST
+df %>%
+  filter(BRAND == "VENOMOUS BLAST") %>%
+  select(MANUFACTURER,CALORIC_SEGMENT, CATEGORY, PACKAGE) %>%
+  summary()
+
+#echo BRAND name and spacing
+cat("\n SQUARE \n")
+
+#BRAND == SQUARE
+df %>%
+  filter(BRAND == "SQUARE") %>%
+  select(MANUFACTURER,CALORIC_SEGMENT, CATEGORY, PACKAGE) %>%
+  summary()
+
+#echo BRAND name and spacing
+cat("\n GREETINGLE \n")
+
+#BRAND == GREETINGLE
+df %>%
+  filter(BRAND == "GREETINGLE") %>%
+  select(MANUFACTURER,CALORIC_SEGMENT, CATEGORY, PACKAGE) %>%
+  summary()
+
+#echo BRAND name and spacing
+cat("\n DIET MOONLIT \n")
+
+#BRAND == DIET MOONLIT
+df %>%
+  filter(BRAND == "DIET MOONLIT") %>%
+  select(MANUFACTURER,CALORIC_SEGMENT, CATEGORY, PACKAGE) %>%
+  summary()
+
+#echo BRAND name and spacing
+cat("\n PEPPY \n")
+
+#BRAND == PEPPY
+df %>%
+  filter(BRAND == "PEPPY") %>%
+  select(MANUFACTURER,CALORIC_SEGMENT, CATEGORY, PACKAGE) %>%
+  summary()
+```
+> The Diet Smash product is a diet product, in the energy category, and comes in 3 packaging types (Innovation - Packaging?). The Sparkling Jacceptabletlester brand comes in both diet/regular, straddles both sparkling water and sparkling soda drink categories, and comes in multiple different package types (but not innovation package "16small multi cup"). The Venomous Blast product comes in both diet and regular, in the energy category product, and comes in 3 packaging types (almost exclusively "16small multi cup", with two short term release sizes, but not future "innovation package?" "16 liquid small"). The Square brand comes in both diet and regular, in the 2 categories (sparkling water and ssd), and comes in 5 packaging types (several have extremely small counts - full innovation packaging?). The Greetingle brand comes in only diet, in the ING Enhanced Water category, and comes in 6 packaging types (all with relatively legit numbers, with the exception of one size). The Diet Moonlit brand comes in only diet, in the ssd category, and comes in multiple packaging types (all with legit numbers). The Peppy brand comes in only regular, in the ssd category, and comes in at least 6 packaging types (all with legit numbers, other could be explored more). 
+
+
+```{r deeper sales look, message = FALSE, warning = FALSE}
+
+# Turn off scientific notation
+options(scipen = 999)
+
+
+#sales in thousands by manufacturer
+df %>%
+  group_by(MANUFACTURER) %>%
+  summarise(TOTAL_SALES = sum(DOLLAR_SALES)) %>%
+  arrange(desc(TOTAL_SALES))
+
+#graph sales in thousands by manufacturer
+
+df %>%
+  group_by(MANUFACTURER) %>%
+  summarise(TOTAL_SALES = sum(DOLLAR_SALES/1000)) %>%
+  ggplot(aes(x = reorder(MANUFACTURER, -TOTAL_SALES), y = TOTAL_SALES)) +
+  geom_col() +
+  coord_flip() +
+  labs(title = "Total Sales in Thousands by Manufacturer",
+       x = "Manufacturer",
+       y = "$ Sales")
+
+#sales in thousands by top 10 package size
+df %>%
+  group_by(PACKAGE) %>%
+  summarise(TOTAL_SALES = sum(DOLLAR_SALES/1000)) %>%
+  arrange(desc(TOTAL_SALES)) %>%
+  head(10)
+
+#graph sales in thousands by top 10 ten package size
+df %>%
+  group_by(PACKAGE) %>%
+  summarise(TOTAL_SALES = sum(DOLLAR_SALES/1000)) %>%
+  arrange(desc(TOTAL_SALES)) %>%
+  head(10) %>%
+  ggplot(aes(x = reorder(PACKAGE, -TOTAL_SALES), y = TOTAL_SALES)) +
+  geom_col() +
+  coord_flip() +
+  labs(title = "Top 10 Sales in Thousands by Package Size",
+       x = "Package Size",
+       y = "$ Sales")
+
+#bottom 10 sales in throusands by package size
+df %>%
+  group_by(PACKAGE) %>%
+  summarise(TOTAL_SALES = sum(DOLLAR_SALES)) %>%
+  arrange(TOTAL_SALES) %>%
+  head(10)
+
+
+#graph sales in thousands by bottom 10 package size
+df %>%
+  group_by(PACKAGE) %>%
+  summarise(TOTAL_SALES = sum(DOLLAR_SALES)) %>%
+  arrange(TOTAL_SALES) %>%
+  head(10) %>%
+  ggplot(aes(x = reorder(PACKAGE, TOTAL_SALES), y = TOTAL_SALES)) +
+  geom_col() +
+  coord_flip() +
+  labs(title = "Bottom 10 Sales by Package Size",
+       x = "Package Size",
+       y = "$ Sales")
+
+#top 10 sales in thousands by brand
+df %>%
+  group_by(BRAND) %>%
+  summarise(TOTAL_SALES = sum(DOLLAR_SALES/1000)) %>%
+  arrange(desc(TOTAL_SALES)) %>%
+  head(10)
+
+#graph sales in thousands by top 10 brand
+df %>%
+  group_by(BRAND) %>%
+  summarise(TOTAL_SALES = sum(DOLLAR_SALES/1000)) %>%
+  arrange(desc(TOTAL_SALES)) %>%
+  head(10) %>%
+  ggplot(aes(x = reorder(BRAND, -TOTAL_SALES), y = TOTAL_SALES)) +
+  geom_col() +
+  coord_flip() +
+  labs(title = "Top 10 Sales in Thousands by Brand",
+       x = "Brand",
+       y = "$ Sales")
+
+#bottom 10 sales in thousands by brand
+df %>%
+  group_by(BRAND) %>%
+  summarise(TOTAL_SALES = sum(DOLLAR_SALES)) %>%
+  arrange(TOTAL_SALES) %>%
+  head(10)
+
+#graph sales in thousands by bottom 10 brand
+df %>%
+  group_by(BRAND) %>%
+  summarise(TOTAL_SALES = sum(DOLLAR_SALES)) %>%
+  arrange(TOTAL_SALES) %>%
+  head(10) %>%
+  ggplot(aes(x = reorder(BRAND, TOTAL_SALES), y = TOTAL_SALES)) +
+  geom_col() +
+  coord_flip() +
+  labs(title = "Bottom 10 Sales by Brand",
+       x = "Brand",
+       y = "$ Sales")
+
+#sales in thousands by category
+df %>%
+  group_by(CATEGORY) %>%
+  summarise(TOTAL_SALES = sum(DOLLAR_SALES/1000)) %>%
+  arrange(desc(TOTAL_SALES))
+
+#graph sales in thousands by CATEGORY
+df %>%
+  group_by(CATEGORY) %>%
+  summarise(TOTAL_SALES = sum(DOLLAR_SALES/1000)) %>%
+  ggplot(aes(x = reorder(CATEGORY, -TOTAL_SALES), y = TOTAL_SALES)) +
+  geom_col() +
+  coord_flip() +
+  labs(title = "Total Sales in Thousands by Category",
+       x = "Category",
+       y = "$ Sales")
+
+#sales in thousands by season
+df %>%
+  group_by(SEASON) %>%
+  summarise(TOTAL_SALES = sum(DOLLAR_SALES/1000)) %>%
+  arrange(desc(TOTAL_SALES))
+
+#graph sales by SEASON
+df %>%
+  group_by(SEASON) %>%
+  summarise(TOTAL_SALES = sum(DOLLAR_SALES/1000)) %>%
+  ggplot(aes(x = reorder(SEASON, -TOTAL_SALES), y = TOTAL_SALES)) +
+  geom_col() +
+  coord_flip() +
+  labs(title = "Total Sales in Thousands by Season",
+       x = "Season",
+       y = "$ Sales")
+```
+
+> Swire is in 3rd place for overall sales behind Jollys and Cocos for overall sales by manufacturer. The top 3 package sizes range from 12small 12one cup, 20small multi jug, and 16small multi cup. Bottom 3 sales by package size are 8.55small mlt shadyes jug, 20 small 15one jug, and 8.55small 6one shadyes jug. Bottom packges sizes are likely innovation package that did not do so well based on extremely small sales (<$40K). Bubble Joy Advantageous (a Coco's regular soda) is a clear winner in sales by brand, followed by real-time (Ally's primarily energy drink in diet/regular), and peppy (Swire-CC's regular soda). Bottom 10 sales by brand all falls into extremely small buckets of sales less than $6k, are these innovation product failures? The bottom three are Mist Twst Nat Cbry (Jolly's 1 single sale of regular soda), Tipcal Canary Twister Soda (1 single sale of Jolly's regular soda), and Vaultless (1 single sale of Coco's diet soda). The sparkling soda drink category is more than double the next (energy). ING Enhanced Water and Sparkling Water register as notable bottled drinks, but coffee barely scratches the surface in terms of sales. Summer and Spring are roughly about the same in terms of sales, followed by a slight drop in Winter, and a more noticeable drop for Fall. 
+
+
+
+```{r brand length of time, message = FALSE, warning = FALSE}
+#top 10 longest running brands
+df %>%
+  group_by(BRAND) %>%
+  summarise(LENGTH = n_distinct(DATE)) %>%
+  arrange(desc(LENGTH)) %>%
+  head(10)
+
+#shortest 10 running brands
+df %>%
+  group_by(BRAND) %>%
+  summarise(LENGTH = n_distinct(DATE)) %>%
+  arrange(LENGTH) %>%
+  head(10)
+
+#median length of time for a brand
+df %>%
+  group_by(BRAND) %>%
+  summarise(LENGTH = n_distinct(DATE)) %>%
+  summarise(median(LENGTH))
+
+#mean length of time for a brand
+df %>%
+  group_by(BRAND) %>%
+  summarise(LENGTH = n_distinct(DATE)) %>%
+  summarise(mean(LENGTH))
+
+#density plot of brand run time
+df %>%
+  group_by(BRAND) %>%
+  summarise(LENGTH = n_distinct(DATE)) %>%
+  ggplot(aes(x = LENGTH)) +
+  geom_density() +
+  labs(title = "Density Plot of Brand Run Time",
+       x = "Weeks",
+       y = "Frequency")
+
+#brands that run for less than 6 months
+df %>%
+  group_by(BRAND) %>%
+  summarise(LENGTH = n_distinct(DATE)) %>%
+  filter(LENGTH < 26)
+
+#summarize features of brands that run for less than 6 months
+df %>%
+  group_by(BRAND) %>%
+  summarise(LENGTH = n_distinct(DATE)) %>%
+  filter(LENGTH < 6) %>%
+  left_join(df, by = "BRAND") %>%
+  select(BRAND, CATEGORY, SEASON, PACKAGE, MANUFACTURER) %>%
+  distinct()
+
+
+```
+
+> The top 10 brands that run 148 or 152 weeks do not include some of the top sales by brands (are there missing weeks?). The top 10 shortest running brands include bottom brands by sales and only ran for 1 or two weeks, which makes sense if something only registered one single sale. The median length of a brand is 137 weeks, with mean brand run time falling in a 99.1 weeks. Therefore, the data likely exhibits left skewness, indicating that there are some brands with very short run times (which pull down the mean), while the median is higher due to the influence of some brands with longer run times. The histogram of brand run time shows a left skew with several stalwart brands running for a very long time, and a lot of brands, including innovation types, running for a shorter duration. As can be seen in the density plot there are two main humps or modes, one that clusters between 0 and ~25 weeks (6 months) trending down to a flatter line between week 50 and week 100, and another much larger cluster presumably dominated by the always on the shlef types cluster between 125 and 152 weeks. It may be worth looking for week 0/launch/tenure date spikes for those products that runs less than 6 months in order to determine start/stop times for any ARIMA/Time-Series models later.
+
+
+```{r package length of time, message = FALSE, warning = FALSE}
+#top 10 longest running packages
+df %>%
+  group_by(PACKAGE) %>%
+  summarise(LENGTH = n_distinct(DATE)) %>%
+  arrange(desc(LENGTH)) %>%
+  head(10)
+
+#shortest 10 running packages
+df %>%
+  group_by(PACKAGE) %>%
+  summarise(LENGTH = n_distinct(DATE)) %>%
+  arrange(LENGTH) %>%
+  head(10)
+
+#median length of time for a package
+df %>%
+  group_by(PACKAGE) %>%
+  summarise(LENGTH = n_distinct(DATE)) %>%
+  summarise(median(LENGTH))
+
+#mean length of time for a package
+df %>%
+  group_by(PACKAGE) %>%
+  summarise(LENGTH = n_distinct(DATE)) %>%
+  summarise(mean(LENGTH))
+
+#density plot of package run time
+df %>%
+  group_by(PACKAGE) %>%
+  summarise(LENGTH = n_distinct(DATE)) %>%
+  ggplot(aes(x = LENGTH)) +
+  geom_density() +
+  labs(title = "Density Plot of Package Run Time",
+       x = "Weeks",
+       y = "Frequency")
+
+#packages that run for less than 6 months
+df %>%
+  group_by(PACKAGE) %>%
+  summarise(LENGTH = n_distinct(DATE)) %>%
+  filter(LENGTH < 26)
+
+#summarize features of packages that run for less than 6 months
+df %>%
+  group_by(PACKAGE) %>%
+  summarise(LENGTH = n_distinct(DATE)) %>%
+  filter(LENGTH < 6) %>%
+  left_join(df, by = "PACKAGE") %>%
+  select(PACKAGE, CATEGORY, SEASON, BRAND, MANUFACTURER) %>%
+  distinct()
+
+```
+
+> Top 10 packages run the entire length of the dataset, which is 152 weeks. These are tried and true packaging sizes that we have all likely grown up with, know and love to enjoy our beverages from, whether from a gas station or grocery store. The top 10 shortest packages range from 1 week to 7 weeks.  The median package run length is 147, indicating that tried and true packing overwhelmingly dominates distribution sales. The mean package tenure is 117 weeks. Therefore, the data likely exhibits right skewness, indicating that there are some packages with very high tenures (which push up the median), but the mean is lower due to the influence of some packages with shorter tenures. The density plot shows two primary modes, one smaller < 12 weeks, likely innovation dominated, and another larger > 140 weeks, legacy package sizes. There are 14 package sizes that run for less than 6 months or 26 weeks.
+
+```{r sales by brand and distinguising characterics from Qs, message = FALSE, warning = FALSE}
+#graph DOLLAR_SALES by DATE for BRAND == "DIET SMASH"
+df %>%
+  filter(BRAND == "DIET SMASH") %>%
+  ggplot(aes(x = DATE, y = DOLLAR_SALES)) +
+  geom_line() +
+  labs(title = "Sales for Diet Smash",
+       x = "Date",
+       y = "$ Sales")
+
+#graph DOLLAR_SALES by DATE for BRAND == "DIET SMASH" - INNOVATION PACKAGE == "2L MULTI JUG"
+df %>%
+  filter(BRAND == "DIET SMASH", PACKAGE == "2L MULTI JUG") %>%
+  ggplot(aes(x = DATE, y = DOLLAR_SALES)) +
+  geom_line() +
+  labs(title = "Sales for Diet Smash 2L Multi Jug",
+       x = "Date",
+       y = "$ Sales")
+
+
+
+#graph DOLLAR_SALES by DATE for BRAND == "SPARKLING JACCEPTABLETLESTER",
+#CATEGORY == "SSD", CALORIC_SEGMENT == REGULAR
+df %>%
+  filter(BRAND == "SPARKLING JACCEPTABLETLESTER", CATEGORY == "SSD",
+         CALORIC_SEGMENT == "1" ) %>%
+  ggplot(aes(x = DATE, y = DOLLAR_SALES)) +
+  geom_line() +
+  labs(title = "Sales for Regular Sparkling Jacceptabletlester Soft Drink",
+       x = "Date",
+       y = "$ Sales")
+
+#graph DOLLAR_SALES by DATE for BRAND == "VENOMOUS BLAST" and CALORIC_SEGMENT == DIET/LIGHT
+df %>%
+  filter(BRAND == "VENOMOUS BLAST", CALORIC_SEGMENT == 0) %>%
+  ggplot(aes(x = DATE, y = DOLLAR_SALES)) +
+  geom_line() +
+  labs(title = "Sales for Venomous Blast",
+       x = "Date",
+       y = "$ Sales")
+
+#graph DOLLAR_SALES by DATE for BRAND == "SQUARE"
+df %>%
+  filter(BRAND == "SQUARE") %>%
+  ggplot(aes(x = DATE, y = DOLLAR_SALES)) +
+  geom_line() +
+  labs(title = "Sales for Square",
+       x = "Date",
+       y = "$ Sales")
+
+#graph DOLLAR_SALES by DATE for BRAND == "GREETINGLE"
+df %>%
+  filter(BRAND == "GREETINGLE") %>%
+  ggplot(aes(x = DATE, y = DOLLAR_SALES)) +
+  geom_line() +
+  labs(title = "Sales for Greetingle",
+       x = "Date",
+       y = "$ Sales")
+
+#graph DOLLAR_SALES by DATE for BRAND == "DIET MOONLIT"
+df %>%
+  filter(BRAND == "DIET MOONLIT") %>%
+  ggplot(aes(x = DATE, y = DOLLAR_SALES)) +
+  geom_line() +
+  labs(title = "Sales for Diet Moonlit",
+       x = "Date",
+       y = "$ Sales")
+
+#graph DOLLAR_SALES by DATE for BRAND == "PEPPY"
+df %>%
+  filter(BRAND == "PEPPY") %>%
+  ggplot(aes(x = DATE, y = DOLLAR_SALES)) +
+  geom_line() +
+  labs(title = "Sales for Peppy",
+       x = "Date",
+       y = "$ Sales")
+
+
+
+```
+
+> Some seasonlity is observed in all drinks analyzed, with most including missing weeks and spikes. Are missing weeks, missing data, end of product lifecycle, or something else? The missing period seems common to several products analyzed.
+
+```{r missing week analysis, message = FALSE, warning = FALSE}
+
+#What are the common gaps between DATE where there is no weekly data for BRAND == "DIET SMASH"
+df %>%
+  filter(BRAND == "DIET SMASH") %>%
+  arrange(DATE) %>%
+  mutate(DIFF = DATE - lag(DATE)) %>%
+  filter(DIFF > 7) %>%
+  count(DIFF) %>%
+  arrange(desc(n)) %>%
+  head(20)
+
+#What are the common gaps between DATE where there is no weekly data for BRAND == "DIET SMASH" and PACKAGE == "2L MULTI JUG"
+df %>%
+  filter(BRAND == "DIET SMASH", PACKAGE == "2L MULTI JUG") %>%
+  arrange(DATE) %>%
+  mutate(DIFF = DATE - lag(DATE)) %>%
+  filter(DIFF > 7) %>%
+  count(DIFF) %>%
+  arrange(desc(n)) %>%
+  head(20)
+
+#What are the common gaps between DATE where there is no weekly data for BRAND == "SPARKLING JACCEPTABLETLESTER",
+#CATEGORY == "SSD", CALORIC_SEGMENT == REGULAR
+df %>%
+  filter(BRAND == "SPARKLING JACCEPTABLETLESTER", CATEGORY == "SSD",
+         CALORIC_SEGMENT == 1) %>%
+  arrange(DATE) %>%
+  mutate(DIFF = DATE - lag(DATE)) %>%
+  filter(DIFF > 7) %>%
+  count(DIFF) %>%
+  arrange(desc(n)) %>%
+  head(20)
+
+#What are the common gaps between DATE where there is no weekly data for BRAND == "VENOMOUS BLAST" and CALORIC_SEGMENT == DIET/LIGHT
+df %>%
+  filter(BRAND == "VENOMOUS BLAST", CALORIC_SEGMENT == 0 ) %>%
+  arrange(DATE) %>%
+  mutate(DIFF = DATE - lag(DATE)) %>%
+  filter(DIFF > 7) %>%
+  count(DIFF) %>%
+  arrange(desc(n)) %>%
+  head(20)
+
+#What are the common gaps between DATE where there is no weekly data for BRAND == "SQUARE"
+df %>%
+  filter(BRAND == "SQUARE") %>%
+  arrange(DATE) %>%
+  mutate(DIFF = DATE - lag(DATE)) %>%
+  filter(DIFF > 7) %>%
+  count(DIFF) %>%
+  arrange(desc(n)) %>%
+  head(20)
+
+#What are the common gaps between DATE where there is no weekly data for BRAND == "GREETINGLE"
+df %>%
+  filter(BRAND == "GREETINGLE") %>%
+  arrange(DATE) %>%
+  mutate(DIFF = DATE - lag(DATE)) %>%
+  filter(DIFF > 7) %>%
+  count(DIFF) %>%
+  arrange(desc(n)) %>%
+  head(20)
+
+#What are the common gaps between DATE where there is no weekly data for BRAND == "DIET MOONLIT"
+df %>%
+  filter(BRAND == "DIET MOONLIT") %>%
+  arrange(DATE) %>%
+  mutate(DIFF = DATE - lag(DATE)) %>%
+  filter(DIFF > 7) %>%
+  count(DIFF) %>%
+  arrange(desc(n)) %>%
+  head(20)
+
+#What are the common gaps between DATE where there is no weekly data for BRAND == "PEPPY"
+df %>%
+  filter(BRAND == "PEPPY") %>%
+  arrange(DATE) %>%
+  mutate(DIFF = DATE - lag(DATE)) %>%
+  filter(DIFF > 7) %>%
+  count(DIFF) %>%
+  arrange(desc(n)) %>%
+  head(20)
+
+
+
+```
+
+> The "Diet Smash" brand has a gap in dates of 42 days. If packaging such as "2L Multi Jug" is added in, Diet Smash has a gap of 35 days. The "regular Sparkling Jacceptabletler brand in the ssd category" has a gap of 42 days. The "Venomous Blast" brand has 2 gaps, one of 35 days and the other of 70 days. The "Square" brand has 7 gap lengths in dates, with the most common of 35 days occuring 3 times, and the longest being 126 days. The "Greetingle" brand has a single gap length of 35 days. The "Diet Moonlit" has a single gap of 42 days. The "Peppy" brand has a single gap of 42 days. Further analysis should be done to ensure start/stop dates for tenure are accurate and that we are not missing weekly data.
+
+```{r guess as to innovation set to focus on, message = FALSE, warning = FALSE}
+
+#most common launch DATE, end DATE, and TENURE of brand or package less than 6 months, or 26 weeks, in duration
+df %>%
+  group_by(BRAND, PACKAGE) %>%
+  summarise(MIN_DATE = min(DATE),
+            MAX_DATE = max(DATE),
+            TENURE = MAX_DATE - MIN_DATE) %>%
+  filter(TENURE < 26) %>%
+  arrange(desc(TENURE))
+
+#summarize top 10  brand or package less than 6 months, or 26 weeks, in duration for innovation set
+df %>%
+  group_by(BRAND, PACKAGE) %>%
+  summarise(MIN_DATE = min(DATE),
+            MAX_DATE = max(DATE),
+            TENURE = MAX_DATE - MIN_DATE) %>%
+  filter(TENURE < 26) %>%
+  arrange(desc(TENURE)) %>%
+  head(10)
+
+#density plot of TENURE less than 6 months, or 26 weeks.
+df %>%
+  group_by(BRAND, PACKAGE) %>%
+  summarise(MIN_DATE = min(DATE),
+            MAX_DATE = max(DATE),
+            TENURE = MAX_DATE - MIN_DATE) %>%
+  filter(TENURE < 26) %>%
+  ggplot(aes(x = TENURE)) +
+  geom_density() +
+  labs(title = "Density of Tenure less than 6 months",
+       x = "Tenure",
+       y = "Density")
+
+
+```
+
+> 145 Brand/Package sets under 6 months, with start and stop date to set as week 0. Will need to guarantee that each one is not missing week/date data for time series analysis. 9 of the top 10 brand/package sets from this set run 21 days, with the 10th running 14 days. October 7th is an extremely popular launch date. The most common tenure of the 145 brand/package combos with tenure less than 6 months run for less than 5 weeks in duration. 
+
+
+
+# Summary and Results
+
+> The analysis of Swire Coca-Cola's sales data reveals several key insights. Initially, there were 59,725 missing values in the dataset, which were subsequently imputed using text data analysis, resulting in zero missing values. The dataset comprises 152 unique weeks, indicating weekly data availability for nearly three years without any missing weeks. Notably, there are 2 caloric segments, 5 categories, 8 manufacturers, 319 brands, 103 package types, and 3,692 unique item descriptions.
+
+> Examining specific products, the analysis distinguishes characteristics such as the Diet Smash product being in the energy category with three packaging types. Similarly, the Sparkling Jacceptabletlester brand offers both diet and regular options across various package types, while the Venomous Blast product is available in both diet and regular variants, primarily in the "16small multi cup" packaging. Moreover, Swire ranks third in overall sales among manufacturers, with Bubble Joy Advantageous leading in sales by brand, followed by Real-Time and Peppy.
+
+> The data exhibits left skewness regarding brand run times, with a median of 137 weeks and a mean of 99.1 weeks, indicating varying brand durations. Conversely, package tenure demonstrates right skewness, with a median of 147 weeks and a mean of 117 weeks, suggesting longer tenure for tried and true packaging sizes. Notably, 14 package sizes run for less than six months, indicating potential innovation packages.
+
+> Seasonal analysis reveals missing weeks and spikes across all drinks analyzed, raising questions about the cause, whether due to missing data or product lifecycle endings. Further investigation is warranted to ensure accurate start and stop dates for product tenures, particularly for brands with gaps in dates.
+
+> In summary, the analysis provides valuable insights into Swire Coca-Cola's sales data, highlighting key trends, product characteristics, and areas for further investigation to optimize forecasting and product launch strategies.
+
+```{r }
+stopImplicitCluster()
+```
