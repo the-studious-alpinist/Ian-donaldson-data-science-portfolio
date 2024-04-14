@@ -32,8 +32,8 @@ Ian Donaldson's Data Science Portfolio
       + [HTML](https://github.com/the-studious-alpinist/Ian-donaldson-data-science-portfolio/blob/main/Swire%20EDA.html)
  
     + Data Prep and Modeling
-      + [RMD](https://github.com/the-studious-alpinist/Ian-donaldson-data-science-portfolio/blob/main/Swire%20Innovation%20ML)   
-      + [HTML]()
+      + [RMD](https://github.com/the-studious-alpinist/Ian-donaldson-data-science-portfolio/blob/main/Casava-and-Plum-combined.Rmd)   
+      + [HTML](https://github.com/the-studious-alpinist/Ian-donaldson-data-science-portfolio/blob/main/Casava-and-Plum-combined.html)
 
   + Other Workbooks
     + [Plum Tableau](https://github.com/the-studious-alpinist/Ian-donaldson-data-science-portfolio/blob/main/Swire%20Plum.twb)
