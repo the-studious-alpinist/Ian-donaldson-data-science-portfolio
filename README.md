@@ -24,6 +24,11 @@ Ian Donaldson's Data Science Portfolio
   + *Lessons Learned:*
  
     From this project, we learned the importance of thorough data exploration, maintaining team dynamics, fostering creativity in model exploration, and setting early timelines. Effective audience engagement during presentations and data storytelling emerged as crucial factors for project success, guiding future endeavors.
+
+  + *Individual Notebooks:*
+
+
+    
   
 
 ### Kaggle Competitions  
