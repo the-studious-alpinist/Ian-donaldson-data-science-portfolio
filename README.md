@@ -27,7 +27,7 @@ Ian Donaldson's Data Science Portfolio
 
   + *Individual R Notebooks:*
 
-    + [EDA](Donaldson_Ian_EDA.Rmd)
+    + [EDA](https://github.com/the-studious-alpinist/Ian-donaldson-data-science-portfolio/blob/main/Donaldson_Ian_EDA.Rmd)
 
     + [Data Prep and Modeling](Home%20Credit%20Default%20Kaggle%20Competition%20Data%20Prep%20and%20Modeling%20Ian.Rmd)
  
