@@ -66,12 +66,11 @@ Ian Donaldson's Data Science Portfolio
   + *Individual Notebooks:*
 
     + EDA
-      + [RMD](Donaldson_Ian_EDA.Rmd)
-      + [HTML]()
+      + [RMD](https://github.com/the-studious-alpinist/Ian-donaldson-data-science-portfolio/blob/main/Donaldson_Ian_Sales_EDA)
+      + [HTML](https://github.com/the-studious-alpinist/Ian-donaldson-data-science-portfolio/blob/main/Swire%20EDA.html)
  
 
     + Data Prep and Modeling
-   
     + [RMD](https://github.com/the-studious-alpinist/Ian-donaldson-data-science-portfolio/blob/main/Swire%20Innovation%20ML)   
     + [HTML]()
 
