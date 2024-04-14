@@ -15,7 +15,7 @@ Ian Donaldson's Data Science Portfolio
 
   + *Contributions to Project:*
     
-    As project co-lead, I assisted with orchestrating all group activities, through Zoom calls and a dedicated Slack channel. I performed extensive exploratory data analysis (EDA) for specific products, including the Diet Moonlit Casava Energy 2L Multi Jug and Diet Smash Plum SSD 11Small 4One, to gather insights for model development. I ran linear regressions, machine learning algorithms, Stochastic Weight Averaging (SWA), and the NewsVendor model for inventory management of these products, contributing to the project's analytical framework. For effective presentation I produced multiple Tableau charts to visualize key findings and presented those insights to the Swire data science team. To enhance audience engagement, I generated advertisement pictures for these innovative products to boost the appeal of the drier predictive modeling aspects of the presentation.
+    As project co-lead, I assisted with orchestrating all group activities, through Zoom calls and a dedicated Slack channel. I performed extensive exploratory data analysis (EDA) for  a deep dive on overall sales of all products and then focused on specific products with additional EDA in the machine learning notebooks (Diet Moonlit Casava Energy 2L Multi Jug and Diet Smash Plum SSD 11Small 4One), to gather insights for model development. I ran linear regressions, machine learning algorithms, Stochastic Weight Averaging (SWA), and the NewsVendor model for inventory management of these products, contributing to the project's analytical framework. For effective presentation I produced multiple Tableau charts to visualize key findings and presented those insights to the Swire data science team. To enhance audience engagement, I generated advertisement pictures for these innovative products to boost the appeal of the drier predictive modeling aspects of the presentation.
 
   +  *Difficulties Encountered Along the Way:*
 
@@ -26,6 +26,10 @@ Ian Donaldson's Data Science Portfolio
     From this project, I reinforced the importance of data exploration, maintaining team dynamics, fostering creativity in model exploration, and setting early timelines in my learning. I learned that creative communication is one of the most important aspects of a high-performing data science team. It was through spitballing ideas that some of our most valuable ideas gained traction. The project also emphasized that effective audience engagement during presentations and data storytelling are crucial for project success, guiding future endeavors.
 
   + *Individual R Notebooks:*
+
+    + [EDA](Donaldson_Ian_EDA.Rmd)
+
+    + [Data Prep and Modeling](Home%20Credit%20Default%20Kaggle%20Competition%20Data%20Prep%20and%20Modeling%20Ian.Rmd)
  
   + *Other Invidivual Workbooks:*
 
