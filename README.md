@@ -35,14 +35,14 @@ Ian Donaldson's Data Science Portfolio
       + [RMD](https://github.com/the-studious-alpinist/Ian-donaldson-data-science-portfolio/blob/main/Swire%20Innovation%20ML)   
       + [HTML]()
 
-    + Other Workbooks
-      + [Plum Tableau](https://github.com/the-studious-alpinist/Ian-donaldson-data-science-portfolio/blob/main/Swire%20Plum.twb)
-      + [Casava Tableau](https://github.com/the-studious-alpinist/Ian-donaldson-data-science-portfolio/blob/main/Swire%20Casava.twb)
-      + [Diet Moonlit Tableau](https://github.com/the-studious-alpinist/Ian-donaldson-data-science-portfolio/blob/main/Swire%20Diet%20Moonlit.twb)
-      + [Diet Smash Tableau](https://github.com/the-studious-alpinist/Ian-donaldson-data-science-portfolio/blob/main/Swire%20Diet%20Smash.twb)
-      + [Casava NewsVendor](https://github.com/the-studious-alpinist/Ian-donaldson-data-science-portfolio/blob/main/cassava_newsvendor_final.xlsx)
+  + Other Workbooks
+    + [Plum Tableau](https://github.com/the-studious-alpinist/Ian-donaldson-data-science-portfolio/blob/main/Swire%20Plum.twb)
+    + [Casava Tableau](https://github.com/the-studious-alpinist/Ian-donaldson-data-science-portfolio/blob/main/Swire%20Casava.twb)
+    + [Diet Moonlit Tableau](https://github.com/the-studious-alpinist/Ian-donaldson-data-science-portfolio/blob/main/Swire%20Diet%20Moonlit.twb)
+    + [Diet Smash Tableau](https://github.com/the-studious-alpinist/Ian-donaldson-data-science-portfolio/blob/main/Swire%20Diet%20Smash.twb)
+    + [Casava NewsVendor](https://github.com/the-studious-alpinist/Ian-donaldson-data-science-portfolio/blob/main/cassava_newsvendor_final.xlsx)
    
-    + Group GitHub - Will Update Once Complete
+  + Group GitHub - Will Update Once Complete
   
 
 ### Kaggle Competitions  
