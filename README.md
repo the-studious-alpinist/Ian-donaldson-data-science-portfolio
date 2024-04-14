@@ -23,7 +23,7 @@ Ian Donaldson's Data Science Portfolio
 
   + *Lessons Learned:*
  
-    From this project, we learned the importance of thorough data exploration, maintaining team dynamics, fostering creativity in model exploration, and setting early timelines. Effective audience engagement during presentations and data storytelling emerged as crucial factors for project success, guiding future endeavors.
+    From this project, I reinforced the importance of data exploration, maintaining team dynamics, fostering creativity in model exploration, and setting early timelines in my learning. I learned that creative communication is one of the most important aspects of a high-performing data science team. It was through spitballing ideas that some of our most valuable ideas gained traction. The project also emphasized that effective audience engagement during presentations and data storytelling are crucial for project success, guiding future endeavors.
 
   + *Individual R Notebooks:*
  
