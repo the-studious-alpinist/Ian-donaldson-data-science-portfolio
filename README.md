@@ -20,6 +20,7 @@ Ian Donaldson's Data Science Portfolio
   +  *Difficulties Encountered Along the Way:*
   
     The Swire project presented several unique challenges that required innovative solutions. One primary challenge stemmed from the lack of existing historical data that perfectly matched the characteristics of innovation products, necessitating the creation of dummy data for those machine learning models where required. Additionally, the sheer massiveness of the dataset, comprising 24 million rows, posed computational and processing challenges, which required careful optimization strategies, such as sampling, to analyze the data better and build models to manage it efficiently. Moreover, the encryption of the data to protect real product information added an extra layer of complexity to the analysis. Coordination hurdles, collaborative struggles in a distributed team, and the need for timely individual submissions further added to the project's complexity. Despite these challenges, the team successfully navigated them, leveraging innovative approaches to deliver actionable insights for Swire's product launch strategy.
+  
 
 ### Kaggle Competitions  
 + **Home Credit Default - IS6812 Capstone Prep Project**
